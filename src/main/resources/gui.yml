@@ -1,0 +1,97 @@
+# 内置三连菜单；/bv open 打开。外观配套CE增量包及JiuJiuLib共享图集协议。
+# 修改标题、文字或布局后，应同步核验字形覆盖与贴图；不影响config.yml奖励及数据库。
+enabled: true
+# 必须接收服务器资源包，防止缺贴图时显示无意义字码。
+require-resource-pack: true
+# 最多同时打开菜单人数1～512；每位玩家仅保留当前一页。
+max-sessions: 128
+# 左键点击冷却100～5000毫秒；后台处理中不会再提交同类请求。
+click-cooldown-ms: 350
+title: '谢谢你为服务器的三联'
+# 页面按钮均为透明模型；不要改为有实际价值的可移动物品。
+button-material: PAPER
+button-item-model: jj_bilibili_gui_261124:invisible
+# 视频名称、列表副标题与完整奖励说明；键为config.yml已登记的真实BV号。
+# 未登记活动不会展示；保留空表时使用BV号和对应奖励模板description。
+# 可在真实BV号下配置name短名称、lore多行完整说明；长名称在卡片裁切，悬浮提示保留完整名称。
+videos:
+  BV1oHyjzMEXM:
+    name: '宣传视频一'
+    lore:
+      - '啾啾空岛即将公测'
+      - '正版验证｜不限生电'
+      - '趣味插件｜玩家友好'
+      - '三连礼物：钻石×1、牛排×16、附魔之瓶×16'
+      - '每位玩家该视频奖励限领一次'
+# 字体只引用已存在的共享字形，新增缺字在本次CE包中；完整长文放原生物品Lore。
+labels:
+  unbound: 'B站账号尚未绑定'
+  bound: '已绑定'
+  loading: '加载中'
+  bind: '扫码绑定'
+  video: '宣传视频'
+  subtitle: '三连领好礼'
+  inspect: '点击查看'
+  previous: '上一页'
+  next: '下一页'
+  like: '点赞'
+  coin: '投币'
+  favorite: '收藏'
+  done: '已完成'
+  missing: '待完成'
+  unchecked: '未查询'
+  checking: '处理中'
+  watch: '查看视频'
+  check: '检查三连'
+  claim: '领取奖励'
+  claimed: '已领取'
+  review: '请核账'
+  empty: '暂无活动'
+  back: '返回'
+  close: '关闭'
+# 原生悬浮说明可自由修改，不需要为长文新增图片字库。
+tips:
+  bind: ['扫码仅绑定你自己的B站账号', '关闭界面后在主手显示二维码']
+  watch: ['关闭界面后显示官方视频二维码']
+  check: ['检查当前账号的点赞、投币、收藏', '只查询状态，不替你操作三连']
+  claim: ['领取时重新核验真实三连状态', '同一奖励按原配置判重，不可重复领取']
+# 色值须在已核对的JiuJiuLib共享调色板内；无效值拒绝重载并保留原设置。
+colors:
+  title: '#F8EAD4'
+  text: '#574947'
+  muted: '#8E7D85'
+  success: '#6D8068'
+  reward: '#92643D'
+# 槽位0～53；背景按已批准布局制作，调整槽位须同时修改外观。
+slots:
+  close: [0]
+  bind: [6, 7, 8]
+  cards:
+    first: [19, 20, 28, 29, 37, 38]
+    second: [21, 22, 30, 31, 39, 40]
+    third: [24, 25, 33, 34, 42, 43]
+  previous: [46, 47]
+  next: [51, 52]
+  watch: [36, 37, 38]
+  check: [39, 40, 41]
+  claim: [42, 43, 44]
+  back: [49]
+# 同一触发只播放一次；成功音仅在业务确认完成后播放。
+sounds:
+  enabled: true
+  volume: 0.4
+  pitch: 1.0
+  click: jj_bilibili_gui_261124:click
+  select: jj_bilibili_gui_261124:select
+  page: jj_bilibili_gui_261124:page
+  back: jj_bilibili_gui_261124:back
+  success: jj_bilibili_gui_261124:success
+  failure: jj_bilibili_gui_261124:failure
+messages:
+  resource-pack: '§e[BV] 请先接受服务器资源包，再打开三连界面。'
+  dependency: '§e[BV] 界面需要兼容的JiuJiuLib及配套CE资源，请联系管理员。'
+  disabled: '§e[BV] 内置界面已关闭。'
+  busy: '§e[BV] 请求处理中或服务器繁忙，请稍后再试。'
+  failed: '§c[BV] 状态获取失败，请稍后重新打开。'
+  unbound: '§e[BV] 请先扫码绑定自己的B站账号。'
+  unknown-glyph: '§e[BV] 部分文字不在共享字库中，完整内容请查看按钮提示。'

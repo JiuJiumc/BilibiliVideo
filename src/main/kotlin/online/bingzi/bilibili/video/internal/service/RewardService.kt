@@ -5,7 +5,7 @@ import online.bingzi.bilibili.video.internal.config.RewardConfigManager
 import online.bingzi.bilibili.video.internal.config.RewardTemplate
 import online.bingzi.bilibili.video.internal.repository.BoundAccountRepository
 import online.bingzi.bilibili.video.internal.repository.RewardRecordRepository
-import org.bukkit.entity.Player
+import online.bingzi.bilibili.video.internal.database.ClaimStore
 
 /**
  * 奖励发放服务层。
@@ -22,7 +22,9 @@ object RewardService {
         val message: String,
         val template: RewardTemplate? = null,
         val bvid: String? = null,
-        val targetKey: String? = null
+        val targetKey: String? = null,
+        val claimKey: String? = null,
+        val claimMid: Long? = null
     )
 
     /**
@@ -34,7 +36,8 @@ object RewardService {
      * @param rewardKey  奖励模板 key（默认 "default"）
      */
     fun rewardByPlayerAndBvid(
-        player: Player,
+        playerUuid: String,
+        playerName: String,
         bvid: String,
         targetKey: String = bvid,
         rewardKey: String = "default"
@@ -47,12 +50,12 @@ object RewardService {
         }
 
         // 获取玩家绑定的 B 站账号信息
-        val playerUuid = player.uniqueId.toString()
+
         val boundAccount = BoundAccountRepository.findByPlayerUuid(playerUuid)
-        val bilibiliMid = boundAccount?.bilibiliMid
+        val bilibiliMid = boundAccount?.bilibiliMid ?: return RewardResult(false, "你还未绑定B站账号。")
 
         // 检查三连状态
-        val tripleResult = CredentialService.checkTripleByPlayer(player, bvid)
+        val tripleResult = CredentialService.checkTripleByMid(bilibiliMid, bvid)
         if (!tripleResult.success || tripleResult.tripleStatus == null) {
             return RewardResult(
                 success = false,
@@ -94,38 +97,25 @@ object RewardService {
             )
         }
 
-        val inserted = RewardRecordRepository.insert(
-            playerUuid = playerUuid,
-            playerName = player.name,
-            bilibiliMid = bilibiliMid,
-            targetKey = targetKey,
-            rewardKey = resolvedRewardKey,
-            status = 1,
-            context = "bvid=$bvid; triple=true; bilibiliMid=$bilibiliMid",
-            failReason = null
-        )
-
-        if (inserted <= 0) {
-            return RewardResult(
-                success = false,
-                message = "记录奖励失败，请稍后重试。"
-            )
+        val template = resolve.template ?: return RewardResult(false, "未配置有效奖励模板，请联系管理员。")
+        val identity = when (dedupStrategy) {
+            DedupStrategy.PLAYER_ONLY -> playerUuid
+            DedupStrategy.BILIBILI_ONLY -> bilibiliMid?.toString() ?: return RewardResult(false, "未绑定B站账号。")
+            DedupStrategy.PLAYER_AND_BILIBILI -> "$playerUuid:${bilibiliMid ?: return RewardResult(false, "未绑定B站账号。") }"
         }
+        val claimKey = ClaimStore.key(dedupStrategy.name, identity, targetKey, resolvedRewardKey)
+        if (!ClaimStore.reserve(claimKey, playerUuid)) return RewardResult(false, "该奖励已领取或处理中；异常中断请联系管理员核账。")
+        return RewardResult(true, "奖励执行完成，感谢你的三连支持！", template, bvid, targetKey, claimKey, bilibiliMid)
+    }
 
-        val template = resolve.template
-        val msg = if (template != null) {
-            "已为你发放该任务的奖励（模板: $resolvedRewardKey）。"
-        } else {
-            "已记录你对该视频的三连行为，但尚未配置奖励模板。"
+    fun complete(result: RewardResult, playerUuid: String, playerName: String, success: Boolean) {
+        val key = result.claimKey ?: return
+        if (success) {
+            // 执行脚本期间可能重新扫码；奖励记录必须使用占位时的账号，不能在完成时换成新绑定。
+            RewardRecordRepository.insert(playerUuid, playerName, result.claimMid, result.targetKey!!,
+                result.template!!.key, 1, context = "bvid=${result.bvid}; claim=$key")
         }
-
-        return RewardResult(
-            success = true,
-            message = msg,
-            template = template,
-            bvid = bvid,
-            targetKey = targetKey
-        )
+        ClaimStore.finish(key, success)
     }
 
     /**

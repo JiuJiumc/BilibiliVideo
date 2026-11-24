@@ -24,6 +24,6 @@ object PlayerListener {
         VirtualItemSession.cleanup(uuid)
 
         // 取消二维码登录会话
-        QrLoginService.cancelLogin(player)
+        QrLoginService.cancelLogin(uuid)
     }
 }

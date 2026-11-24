@@ -70,8 +70,8 @@ object CredentialService {
     /**
      * 根据玩家对象获取其绑定的凭证信息 DTO（如果存在绑定与凭证）。
      */
-    fun getCredentialInfo(player: Player): CredentialInfo? {
-        val bound = BoundAccountRepository.findByPlayerUuid(player.uniqueId.toString()) ?: return null
+    fun getCredentialInfoByPlayer(playerUuid: String): CredentialInfo? {
+        val bound = BoundAccountRepository.findByPlayerUuid(playerUuid) ?: return null
         val credential = bound.bilibiliMid.let { mid ->
             CredentialRepository.findByBilibiliMid(mid)
         } ?: return null
@@ -96,8 +96,8 @@ object CredentialService {
     /**
      * 使用玩家对象自动获取绑定的 B 站账号凭证，并对某个 bvid 进行三连状态检测。
      */
-    fun checkTripleByPlayer(player: Player, bvid: String): TripleCheckResult {
-        val bound = BoundAccountRepository.findByPlayerUuid(player.uniqueId.toString())
+    fun checkTripleByPlayer(playerUuid: String, bvid: String): TripleCheckResult {
+        val bound = BoundAccountRepository.findByPlayerUuid(playerUuid)
             ?: return TripleCheckResult(
                 code = TripleCheckCode.PLAYER_NOT_BOUND,
                 message = "你还没有绑定 B 站账号。"
@@ -112,6 +112,12 @@ object CredentialService {
         return internalCheckTripleWithCredential(entity, bvid) {
             "[CredentialService] 三连状态检测成功（来源=玩家绑定，bvid=$bvid）"
         }
+    }
+
+    fun checkTripleByMid(mid: Long, bvid: String): TripleCheckResult {
+        val credential = CredentialRepository.findByBilibiliMid(mid)
+            ?: return TripleCheckResult(TripleCheckCode.CREDENTIAL_NOT_FOUND, "未找到B站登录凭证。")
+        return internalCheckTripleWithCredential(credential, bvid) { "[BV] 三连状态查询完成" }
     }
 
     /**

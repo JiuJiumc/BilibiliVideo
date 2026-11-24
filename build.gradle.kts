@@ -1,5 +1,5 @@
 import io.izzel.taboolib.gradle.*
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 
@@ -15,9 +15,6 @@ taboolib {
     env {
         install(Basic)
         install(BukkitHook)
-        install(BukkitNMS)
-        install(BukkitNMSItemTag)
-        install(BukkitNMSUtil)
         install(BukkitUtil)
         install(CommandHelper)
         install(I18n)
@@ -25,10 +22,16 @@ taboolib {
         install(MinecraftChat)
         install(Bukkit)
         install(Kether)
+        // Kether传递引入NMS模块；二维码不再调用该模块，26.2不因其版本表中断生命周期。
+        modules.removeIf { it.startsWith("bukkit-nms") }
+        disableOnUnsupportedVersion = true
+        disableWhenPrimitiveLoaderError = true
         enableIsolatedClassloader = true
     }
     description {
         name = "BilibiliVideo"
+        bukkitApi("26.2")
+        dependencies { name("JiuJiuLib").optional(true) }
         contributors {
             name("BingZi-233")
         }
@@ -49,8 +52,12 @@ val gsonVersion = "2.11.0"
 val zxingVersion = "3.5.2"
 
 dependencies {
-    compileOnly("ink.ptms.core:v12111:12111:mapped")
-    compileOnly("ink.ptms.core:v12111:12111:universal")
+    compileOnly(files("libs/folia-api-26.2.build.7-beta.jar"))
+    compileOnly("net.kyori:adventure-api:5.2.0")
+    testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.xerial:sqlite-jdbc:3.45.1.0")
     compileOnly(kotlin("stdlib"))
     compileOnly(fileTree("libs"))
     compileOnly("org.ktorm:ktorm-core:$ktormVersion")
@@ -71,14 +78,14 @@ tasks.withType<JavaCompile> {
 
 tasks.withType<KotlinCompile> {
     compilerOptions {
-        jvmTarget.set(JVM_1_8)
+        jvmTarget.set(JVM_21)
         freeCompilerArgs.add("-Xjvm-default=all")
     }
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 publishing {
@@ -143,3 +150,7 @@ idea {
         isDownloadSources = true
     }
 }
+tasks.test { useJUnitPlatform() }
+
+
+configurations.testImplementation { extendsFrom(configurations.compileOnly.get()) }

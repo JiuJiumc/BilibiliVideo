@@ -19,6 +19,7 @@ internal object DatabaseSchemaInitializer {
 
         database.useConnection { connection ->
             executeStatements(connection, statements, config.options.showSql)
+            ClaimStore.create(connection, config.options.tablePrefix + "reward_claim")
         }
 
         // 执行迁移语句

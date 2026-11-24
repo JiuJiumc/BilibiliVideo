@@ -73,6 +73,8 @@ object DatabaseConfigManager {
             else -> DatabaseType.SQLITE
         }
 
+        val prefix = file.getString("database.options.table-prefix") ?: "bv_"
+        require(prefix.matches(Regex("[A-Za-z0-9_]{0,32}"))) { "数据库表前缀只允许0至32位字母数字下划线" }
         val sqlite = SqliteSection(
             file = file.getString("database.sqlite.file") ?: "bilibili_video.db",
             walMode = file.getBoolean("database.sqlite.wal-mode", true),

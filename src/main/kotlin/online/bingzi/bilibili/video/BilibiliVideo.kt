@@ -17,7 +17,15 @@ object BilibiliVideo : Plugin() {
 
     override fun onEnable() {
         info("正在启动 BilibiliVideo 插件...")
+        online.bingzi.bilibili.video.internal.ChatMessages.load()
+        online.bingzi.bilibili.video.internal.SafetySettings.load()
+        online.bingzi.bilibili.video.internal.TaskScheduler.initialize()
+        // 启动时核对26.2二维码数据包签名，避免等玩家扫码才暴露不兼容。
+        online.bingzi.bilibili.video.internal.nms.NMSPacketHandler.instance
         DatabaseFactory.initFromConfig()
+        online.bingzi.bilibili.video.internal.config.RewardConfigManager.loadSnapshot()
+        online.bingzi.bilibili.video.internal.ui.VirtualItemSession.initialize()
+        online.bingzi.bilibili.video.internal.ui.BilibiliGui.initialize()
         info("BilibiliVideo 插件启动完成！")
     }
 
@@ -35,6 +43,10 @@ object BilibiliVideo : Plugin() {
         } catch (e: Throwable) {
             warning("[BilibiliVideo] QrLoginService 关闭异常: ${e.message}")
         }
+        online.bingzi.bilibili.video.internal.ui.BilibiliGui.shutdown()
+        online.bingzi.bilibili.video.internal.ui.VirtualItemSession.shutdown()
+        online.bingzi.bilibili.video.internal.http.BilibiliHttpClient.shutdown()
+        online.bingzi.bilibili.video.internal.TaskScheduler.shutdown()
         try {
             DatabaseFactory.shutdown()
         } catch (e: Throwable) {

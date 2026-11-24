@@ -7,21 +7,39 @@ reward:
 
   templates:
     default:
-      description: "完成三连时发放的默认奖励示例"
+      description: "钻石×1、牛排×16、附魔之瓶×16"
       kether:
-        # 仅作为示例，实际脚本可根据需要自行编写
-        - 'tell "&a你已完成该视频的三连，感谢支持！"'
+        # 控制台发放；玩家名由PlaceholderAPI替换，命令不加斜杠。
+        - 'command papi "minecraft:give %player_name% minecraft:diamond 1" by console'
+        - 'command papi "minecraft:give %player_name% minecraft:cooked_beef 16" by console'
+        - 'command papi "minecraft:give %player_name% minecraft:experience_bottle 16" by console'
+        - 'tell "&f[&5Bilibili&f] 感谢你支持啾啾服务器！三连礼物：钻石×1、牛排×16、附魔之瓶×16。"'
 
     vip:
       description: "示例：某些视频使用更高档奖励"
       kether:
-        - 'tell "&6你对该视频的支持获得了 VIP 奖励！"'
+        - 'tell "&b你成功三连了啾啾服务器的宣传视频并且&c收到了一份小礼物"'
 
-  # 针对特定 bvid 的奖励配置
+  # 宣传视频活动；这里只填BV号，不填完整网址。
   videos:
-    # 完全自定义的示例：BV1xxxxx 使用 vip 模板
-    BV1xxxxx:
-      rewardKey: "vip"
+    BV1oHyjzMEXM:
+      rewardKey: "default"
 
-    # 如果仅配置了 bvid 但不写 rewardKey，将自动回退到 templates.default
-    BV2yyyyy: { }
+# 资源安全限制；修改以下项目后完整重启，reload仅重载奖励配置。
+safety:
+  # 后台联网和数据库工作线程数，1～16；默认4适合轻量活动。
+  io-threads: 4
+  # 等待队列8～1024；队列满会拒绝新请求，避免内存持续增长。
+  io-queue: 128
+  # 同时受理的玩家操作1～512；每个玩家同一时间只处理一个请求。
+  max-operations: 64
+  # 同时保存的二维码会话1～512，过期或退出自动清理。
+  max-login-sessions: 128
+  # 扫码查询间隔2～30秒，越小B站接口压力越高。
+  poll-seconds: 3
+  # 登录会话30～180秒，不能超过B站二维码有效期。
+  session-seconds: 180
+  # 单次HTTP完整超时3～30秒；连接/读写还有独立较短超时。
+  http-timeout-seconds: 15
+  # 仅客户端显示的地图ID，10亿～2147483647；与其他虚拟地图插件冲突时调整。
+  virtual-map-id: 2000000001

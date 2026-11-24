@@ -18,9 +18,9 @@ object RewardKetherExecutor {
      * @param bvid      视频 BVID
      * @param targetKey 奖励目标 key
      */
-    fun execute(player: Player, template: RewardTemplate, bvid: String, targetKey: String) {
+    fun execute(player: Player, template: RewardTemplate, bvid: String, targetKey: String): java.util.concurrent.CompletableFuture<*> {
         val script = template.lines.joinToString("\n")
-        KetherShell.eval(
+        return KetherShell.eval(
             source = script,
             options = ScriptOptions.new {
                 sender(player)

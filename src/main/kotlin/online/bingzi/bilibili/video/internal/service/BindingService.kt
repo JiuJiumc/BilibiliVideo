@@ -65,12 +65,16 @@ object BindingService {
 
             if (activePlayerBinding != null) {
                 return if (activePlayerBinding.bilibiliMid == bilibiliMid) {
-                    BoundAccountRepository.updateBinding(
+                    val refreshed = BoundAccountRepository.updateBinding(
                         playerUuid = playerUuid,
                         playerName = playerName,
                         bilibiliMid = bilibiliMid,
                         bilibiliName = bilibiliName,
                         status = 1
+                    )
+                    if (refreshed <= 0) return BindResult(
+                        code = BindResultCode.DATABASE_ERROR,
+                        message = "绑定状态已变化，请重新查询；如需换绑请联系服主。"
                     )
                     BindResult(
                         code = BindResultCode.ALREADY_BOUND_SAME,
@@ -79,7 +83,7 @@ object BindingService {
                 } else {
                     BindResult(
                         code = BindResultCode.PLAYER_BOUND_OTHER,
-                        message = "该玩家已绑定其他 B 站账号，如需更换请先解绑。"
+                        message = "该玩家已绑定其他 B 站账号；玩家不可换绑，请联系服主在控制台处理。"
                     )
                 }
             }

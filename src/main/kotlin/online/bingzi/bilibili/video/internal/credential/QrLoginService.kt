@@ -1,5 +1,6 @@
 package online.bingzi.bilibili.video.internal.credential
 
+import online.bingzi.bilibili.video.internal.bilibiliMessage
 import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -13,7 +14,8 @@ import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import taboolib.common.platform.function.info
 import taboolib.common.platform.function.warning
-import taboolib.platform.util.submit
+import online.bingzi.bilibili.video.internal.TaskScheduler
+import online.bingzi.bilibili.video.internal.SafetySettings
 import java.io.IOException
 import java.util.*
 import java.util.concurrent.*
@@ -39,10 +41,13 @@ object QrLoginService {
     private const val NAV_URL =
         "https://api.bilibili.com/x/web-interface/nav"
 
-    private const val QR_EXPIRE_MILLIS = 180_000L
+    private val QR_EXPIRE_MILLIS get() = SafetySettings.sessionMillis
 
+    private val stopped = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val loginGate = online.bingzi.bilibili.video.internal.OperationGate(SafetySettings.maxOperations)
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            .callTimeout(SafetySettings.httpSeconds, TimeUnit.SECONDS)
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(8, TimeUnit.SECONDS)
             .writeTimeout(8, TimeUnit.SECONDS)
@@ -51,10 +56,9 @@ object QrLoginService {
 
     private val gson: Gson = Gson()
 
-    private val scheduler: ScheduledExecutorService =
-        Executors.newSingleThreadScheduledExecutor { r ->
-            Thread(r, "BilibiliVideo-QrLogin").apply { isDaemon = true }
-        }
+    private val scheduler = ScheduledThreadPoolExecutor(1) { r ->
+        Thread(r, "BilibiliVideo-QrTimer").apply { isDaemon = true }
+    }.apply { removeOnCancelPolicy = true }
 
     private data class QrSession(
         val playerUuid: UUID,
@@ -64,6 +68,7 @@ object QrLoginService {
         val expireAt: Long
     )
 
+    private val lifecycle = Any()
     private val sessions = ConcurrentHashMap<UUID, QrSession>()
     private val pollTasks = ConcurrentHashMap<UUID, ScheduledFuture<*>>()
 
@@ -87,8 +92,20 @@ object QrLoginService {
      *
      * 成功时返回二维码 URL，由调用方负责通过地图等形式展示给玩家。
      */
-    fun startLogin(player: Player): QrStartResult {
+    fun startLogin(playerUuid: UUID, playerName: String): QrStartResult {
+        if (stopped.get() || !loginGate.enter(playerUuid)) return QrStartResult(
+            QrStartCode.API_ERROR, "登录处理中或服务器繁忙，请稍后重试。")
+        var pendingSession: QrSession? = null
+        try {
         val now = System.currentTimeMillis()
+        val pending = QrSession(playerUuid, playerName, "", now, now + QR_EXPIRE_MILLIS)
+        synchronized(lifecycle) {
+            if (stopped.get() || sessions.size >= SafetySettings.maxSessions && !sessions.containsKey(playerUuid))
+                return QrStartResult(QrStartCode.API_ERROR, "登录会话已满，请稍后重试。")
+            sessions[playerUuid] = pending
+            pollTasks.remove(playerUuid)?.cancel(false)
+        }
+        pendingSession = pending
         val generate = try {
             requestQrGenerate()
         } catch (e: IOException) {
@@ -113,71 +130,81 @@ object QrLoginService {
         }
 
         val session = QrSession(
-            playerUuid = player.uniqueId,
-            playerName = player.name,
+            playerUuid = playerUuid,
+            playerName = playerName,
             qrcodeKey = generate.data.qrcodeKey,
             createdAt = now,
             expireAt = now + QR_EXPIRE_MILLIS
         )
 
-        // 覆盖旧会话及轮询任务
-        cancelSession(player.uniqueId)
-        sessions[player.uniqueId] = session
+        synchronized(lifecycle) {
+            if (stopped.get() || !sessions.replace(playerUuid, pending, session))
+                return QrStartResult(QrStartCode.API_ERROR, "登录已取消，请重新扫码。")
+            pollTasks[playerUuid] = scheduler.scheduleWithFixedDelay(
+                { if (loginGate.enter(playerUuid)) {
+                    if (!TaskScheduler.async {
+                        try { pollOnce(session) }
+                        catch (t: Throwable) {
+                            warning("[QrLoginService] 登录处理失败: ${t.javaClass.simpleName}")
+                            cancelSession(playerUuid, session)
+                        } finally { LoginContextHolder.get(); loginGate.leave(playerUuid) }
+                    }) loginGate.leave(playerUuid)
+                } }, SafetySettings.pollSeconds, SafetySettings.pollSeconds, TimeUnit.SECONDS
+            )
+        }
 
-        val future = scheduler.scheduleAtFixedRate(
-            { pollOnce(player.uniqueId) },
-            2,
-            2,
-            TimeUnit.SECONDS
-        )
-        pollTasks[player.uniqueId] = future
-
-        info("[QrLoginService] 已为玩家 ${player.name} 创建二维码登录会话。")
+        info("[QrLoginService] 已为玩家 ${playerName} 创建二维码登录会话。")
         return QrStartResult(
             code = QrStartCode.SUCCESS,
             message = "二维码已生成。",
             qrUrl = generate.data.url,
             expireAt = session.expireAt
         )
+        } finally {
+            pendingSession?.let { pending ->
+                synchronized(lifecycle) { sessions.remove(playerUuid, pending) }
+            }
+            loginGate.leave(playerUuid)
+        }
     }
 
-    fun cancelLogin(player: Player) {
-        cancelSession(player.uniqueId)
+    fun cancelLogin(playerUuid: UUID) {
+        cancelSession(playerUuid)
     }
 
     fun shutdown() {
-        sessions.clear()
-        pollTasks.values.forEach { it.cancel(true) }
-        pollTasks.clear()
-        scheduler.shutdownNow()
+        synchronized(lifecycle) {
+            stopped.set(true)
+            sessions.clear()
+            pollTasks.values.forEach { it.cancel(false) }
+            pollTasks.clear()
+            scheduler.shutdownNow()
+        }
+        client.dispatcher.cancelAll()
+        client.connectionPool.evictAll()
+        client.dispatcher.executorService.shutdownNow()
     }
 
-    private fun cancelSession(playerUuid: UUID) {
-        sessions.remove(playerUuid)
-        pollTasks.remove(playerUuid)?.cancel(true)
+    private fun cancelSession(playerUuid: UUID, expected: QrSession? = null) {
+        synchronized(lifecycle) {
+            if (expected != null && !sessions.remove(playerUuid, expected)) return
+            if (expected == null) sessions.remove(playerUuid)
+            pollTasks.remove(playerUuid)?.cancel(false)
+        }
 
-        // 恢复玩家背包（移除虚拟二维码物品）
-        Bukkit.getPlayer(playerUuid)?.let { player ->
-            player.submit(async = false) {
-                VirtualItemSession.restoreItem(player)
-            }
-        } ?: run {
-            // 玩家离线时直接清理会话数据
-            VirtualItemSession.cleanup(playerUuid)
+        TaskScheduler.entity(playerUuid, retired = { VirtualItemSession.cleanup(playerUuid) }) {
+            if (!sessions.containsKey(playerUuid)) VirtualItemSession.restoreItem(it)
         }
     }
 
-    private fun pollOnce(playerUuid: UUID) {
-        val session = sessions[playerUuid]
-        if (session == null) {
-            cancelSession(playerUuid)
-            return
-        }
+    private fun pollOnce(session: QrSession) {
+        val playerUuid = session.playerUuid
+        if (stopped.get() || sessions[playerUuid] !== session) return
 
         val now = System.currentTimeMillis()
         if (now > session.expireAt) {
             info("[QrLoginService] 玩家 ${session.playerName} 的二维码会话已过期，已清理。")
-            cancelSession(playerUuid)
+            cancelSession(playerUuid, session)
             return
         }
 
@@ -191,6 +218,7 @@ object QrLoginService {
             return
         }
 
+        if (stopped.get() || sessions[playerUuid] !== session) { LoginContextHolder.get(); return }
         if (poll.code != 0 || poll.data == null) {
             // B 站接口本身异常，稍后重试
             return
@@ -212,13 +240,13 @@ object QrLoginService {
                     session,
                     "§e[BV] 二维码已失效，请重新执行 /bv qrcode。"
                 )
-                cancelSession(playerUuid)
+                cancelSession(playerUuid, session)
             }
 
             0 -> {
                 // 登录成功
-                handleLoginSuccess(session, poll)
-                cancelSession(playerUuid)
+                try { handleLoginSuccess(session, poll) }
+                finally { LoginContextHolder.get(); cancelSession(playerUuid, session) }
             }
         }
     }
@@ -299,6 +327,7 @@ object QrLoginService {
             return
         }
 
+        if (stopped.get() || sessions[session.playerUuid] !== session) return
         val mid = nav.data.mid
         val uname = nav.data.uname
         val refreshToken = context.refreshToken
@@ -428,12 +457,7 @@ object QrLoginService {
      * 在主线程上给玩家发送提示消息（如果仍在线）。
      */
     private fun notifyPlayer(session: QrSession, message: String) {
-        val player = Bukkit.getPlayer(session.playerUuid) ?: return
-        player.submit(async = false) {
-            if (player.isOnline) {
-                player.sendMessage(message)
-            }
-        }
+        TaskScheduler.entity(session.playerUuid) { it.bilibiliMessage(message) }
     }
 
     /**
