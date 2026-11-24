@@ -1,9 +1,11 @@
 package online.bingzi.bilibili.video.internal.service
 
+import online.bingzi.bilibili.video.internal.Messages
+
 import online.bingzi.bilibili.video.internal.entity.BoundAccount
 import online.bingzi.bilibili.video.internal.repository.BoundAccountRepository
-import taboolib.common.platform.function.info
-import taboolib.common.platform.function.warning
+import online.bingzi.bilibili.video.internal.info
+import online.bingzi.bilibili.video.internal.warning
 
 /**
  * 账号绑定业务服务层。
@@ -65,21 +67,25 @@ object BindingService {
 
             if (activePlayerBinding != null) {
                 return if (activePlayerBinding.bilibiliMid == bilibiliMid) {
-                    BoundAccountRepository.updateBinding(
+                    val refreshed = BoundAccountRepository.updateBinding(
                         playerUuid = playerUuid,
                         playerName = playerName,
                         bilibiliMid = bilibiliMid,
                         bilibiliName = bilibiliName,
                         status = 1
                     )
+                    if (refreshed <= 0) return BindResult(
+                        code = BindResultCode.DATABASE_ERROR,
+                        message = Messages.text("binding.state-changed")
+                    )
                     BindResult(
                         code = BindResultCode.ALREADY_BOUND_SAME,
-                        message = "你已经绑定过该 B 站账号，无需重复操作。"
+                        message = Messages.text("binding.already-bound")
                     )
                 } else {
                     BindResult(
                         code = BindResultCode.PLAYER_BOUND_OTHER,
-                        message = "该玩家已绑定其他 B 站账号，如需更换请先解绑。"
+                        message = Messages.text("binding.player-bound-elsewhere")
                     )
                 }
             }
@@ -89,7 +95,7 @@ object BindingService {
             if (conflictByMid != null) {
                 return BindResult(
                     code = BindResultCode.MID_BOUND_OTHER,
-                    message = "该 B 站账号已与其他玩家绑定。"
+                    message = Messages.text("binding.account-bound-elsewhere")
                 )
             }
 
@@ -112,15 +118,15 @@ object BindingService {
             if (affected <= 0) {
                 return BindResult(
                     code = BindResultCode.DATABASE_ERROR,
-                    message = "数据库写入失败，请稍后重试。"
+                    message = Messages.text("binding.insert-failed")
                 )
             }
 
-            val action = if (existingByPlayer == null) "完成账号绑定" else "重新激活账号绑定"
+            val action = if (existingByPlayer == null) Messages.text("binding.audit-bind") else Messages.text("binding.audit-reactivate")
             info("[BindingService] 已为玩家 $playerName $action。")
             BindResult(
                 code = BindResultCode.SUCCESS,
-                message = "绑定成功。"
+                message = Messages.text("binding.success")
             )
         } catch (t: Throwable) {
             warning(
@@ -129,7 +135,7 @@ object BindingService {
             )
             BindResult(
                 code = BindResultCode.DATABASE_ERROR,
-                message = "执行绑定时发生错误，请联系管理员。"
+                message = Messages.text("binding.failed")
             )
         }
     }
@@ -161,7 +167,7 @@ object BindingService {
             if (existing == null) {
                 return UnbindResult(
                     code = UnbindResultCode.NOT_BOUND,
-                    message = "未找到绑定记录。"
+                    message = Messages.text("binding.missing")
                 )
             }
 
@@ -169,14 +175,14 @@ object BindingService {
             if (affected <= 0) {
                 return UnbindResult(
                     code = UnbindResultCode.DATABASE_ERROR,
-                    message = "数据库更新失败，请稍后重试。"
+                    message = Messages.text("binding.update-failed")
                 )
             }
 
             info("[BindingService] 已为玩家 ${existing.playerName} 完成账号解绑。")
             UnbindResult(
                 code = UnbindResultCode.SUCCESS,
-                message = "解绑成功。"
+                message = Messages.text("binding.unbind-success")
             )
         } catch (t: Throwable) {
             warning(
@@ -185,7 +191,7 @@ object BindingService {
             )
             UnbindResult(
                 code = UnbindResultCode.DATABASE_ERROR,
-                message = "执行解绑时发生错误，请联系管理员。"
+                message = Messages.text("binding.unbind-failed")
             )
         }
     }

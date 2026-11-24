@@ -1,0 +1,153 @@
+# 玩家提示正文；修改后执行 /jjblbl reload，无需重启或重发CE。
+# 支持&颜色、普通文字或多行列表；空字符串/空列表关闭该条提示。
+# [BV]自动替换为chat-style.yml的前缀；也可在任意位置写{prefix}。
+# 花括号是内容变量，名称必须保留；替换只执行一次，不执行命令或脚本。
+# GUI按钮/标签仍在gui.yml，奖励自定义message动作仍在config.yml。
+# 缺少的键采用内置默认；无效类型使本次提示重载失败并保留旧值。
+
+# 仅管理员本人测试；同时需要admin和testreward权限，旧消息文件缺少本节时使用默认值。
+test-reward:
+  usage: '[BV] 管理员测试：/jjblbl testreward [BV号]；只有一个活动时可省略BV号。'
+  # 可用变量：{bvid}
+  started: '[BV] &e开始测试发放 {bvid} 的整份奖励，本次不记录正式领取。'
+  # console动作仅确认命令被受理，必须核对第三方钥匙真实到账。
+  success: '[BV] &a测试奖励动作执行完成，可再次测试；请核对物品和钥匙到账数量。'
+  failed: '[BV] &c测试奖励执行异常，可能已有部分到账，请先核对再重试。'
+  # 可用变量：{reason}
+  rejected: '[BV] &c无法开始测试发奖：{reason}'
+
+command:
+  busy: "[BV] 操作处理中或服务器繁忙，请稍后再试。"
+  operation-failed: "[BV] 操作失败，请稍后再试；领奖异常请先联系管理员核账。"
+  queue-full: "[BV] 请求队列已满，请稍后再试。"
+  no-permission: "[BV] 你没有使用权限。"
+  no-admin-permission: "[BV] 你没有管理权限。"
+  player-only: "[BV] 此命令只能在游戏内执行。"
+  # 可用变量：{sub}
+  video-usage: "[BV] 用法：/jjblbl {sub} <真实BV号或官方视频网址>"
+  video-qr-generated: "[BV] 已生成视频跳转二维码，扫码打开视频。"
+  help-main: "[BV] /jjblbl open 打开界面；/jjblbl qrcode 扫码绑定；/jjblbl status 查看绑定"
+  help-video: "[BV] /jjblbl videoqr <BV号> 视频二维码；/jjblbl triple <BV号> 检查；/jjblbl reward <BV号> 领奖"
+  help-admin: "[BV] /jjblbl reload；/jjblbl admin credential list/info <标签>；控制台：jjblbl admin unbind <玩家名/UUID/UID>"
+  # 可用变量：{message}
+  result: "[BV] {message}"
+  qr-generated: "[BV] 已为你生成二维码，请用手机扫码完成绑定。"
+  unbound: "[BV] 你还未绑定B站账号。"
+  # 可用变量：{bilibiliName}, {bilibiliMid}
+  binding-status: "[BV] 当前绑定：{bilibiliName} (UID {bilibiliMid})"
+  credential-missing: "[BV] 未保存凭证，请扫码登录。"
+  credential-normal: "正常"
+  credential-expired: "过期"
+  credential-disabled: "禁用"
+  # 可用变量：{state}
+  credential-status: "[BV] 凭证状态：{state}"
+  triple-done: "已完成三连"
+  triple-missing: "未完成三连"
+  # 可用变量：{liked}, {coinCount}, {favoured}, {state}
+  triple-status: "[BV] 点赞：{liked}，投币：{coinCount}，收藏：{favoured}；{state}"
+  reload-success: "[BV] 提示、奖励及GUI配置重载完成；关闭菜单后重新打开生效。"
+  reload-failed: "[BV] 部分配置重载失败或GUI依赖未就绪，请查看日志。"
+  unbind-console-only: "[BV] 解绑仅限服主在服务器控制台执行，玩家及OP不能自行解绑。"
+  unbind-usage: "[BV] 用法：jjblbl admin unbind <玩家名/UUID/UID>"
+  binding-missing: "[BV] 未找到绑定记录。"
+  credential-list-header: "[BV] 凭证列表（最多50条）："
+  # 可用变量：{label}, {bilibiliMid}, {status}
+  credential-list-row: "{label} | UID={bilibiliMid} | 状态={status}"
+  credential-not-found: "[BV] 未找到凭证。"
+  # 可用变量：{label}, {bilibiliMid}, {status}
+  credential-info: "[BV] {label} | UID={bilibiliMid} | 状态={status}"
+  credential-refresh: "[BV] 请重新扫码更新凭证。"
+  reward-template-missing: "奖励模板不存在"
+  reward-config-invalid: "奖励配置无效"
+  # 可用变量：{reason}
+  reward-precheck-failed: "[BV] {reason}"
+  # 可用变量：{message}
+  result-error: "[BV] {message}"
+  # 可用变量：{message}
+  result-success: "[BV] {message}"
+  reward-locked: "[BV] 奖励执行异常，已锁定记录，请联系管理员核账。"
+  reward-register-failed: "[BV] 奖励结果登记异常，请联系管理员核账。"
+  reward-register-pending: "[BV] 奖励结果尚未登记，请联系管理员核账。"
+  reward-execution-failed: "[BV] 奖励执行异常，请联系管理员核账。"
+  query-failed: "[BV] 查询失败，请检查日志。"
+  # 可用变量：{bvid}
+  video-unregistered: "[BV] 稿件 {bvid} 尚未在 config.yml 的 reward.videos 中登记，无法使用该命令。"
+
+binding:
+  state-changed: "绑定状态已变化，请重新查询；如需换绑请联系服主。"
+  already-bound: "你已经绑定过该 B 站账号，无需重复操作。"
+  player-bound-elsewhere: "该玩家已绑定其他 B 站账号；玩家不可换绑，请联系服主在控制台处理。"
+  account-bound-elsewhere: "该 B 站账号已与其他玩家绑定。"
+  insert-failed: "数据库写入失败，请稍后重试。"
+  audit-bind: "完成账号绑定"
+  audit-reactivate: "重新激活账号绑定"
+  success: "绑定成功。"
+  failed: "执行绑定时发生错误，请联系管理员。"
+  missing: "未找到绑定记录。"
+  update-failed: "数据库更新失败，请稍后重试。"
+  unbind-success: "解绑成功。"
+  unbind-failed: "执行解绑时发生错误，请联系管理员。"
+
+credential:
+  # 可用变量：{label}
+  label-missing: "未找到名为 {label} 的凭证。"
+  unbound: "你还没有绑定 B 站账号。"
+  bound-credential-missing: "未找到与你绑定的 B 站账号对应的凭证。"
+  missing: "未找到B站登录凭证。"
+  audit-check: "[BV] 三连状态查询完成"
+  disabled: "B 站凭证已被禁用。"
+  expired: "B 站凭证已过期。"
+  check-success: "三连状态检测成功。"
+  check-failed: "调用 B 站接口失败，请稍后重试或检查凭证。"
+
+reward:
+  unregistered: "该稿件未在 config.yml 的 reward.videos 中登记，无法领取奖励。"
+  unbound: "你还未绑定B站账号。"
+  hint-pair: "（当前玩家 + 当前 B 站账号）"
+  hint-bilibili: "（当前 B 站账号）"
+  hint-player: "（当前玩家）"
+  # 可用变量：{strategyHint}
+  already-claimed: "你已经领取过该任务的奖励{strategyHint}，无法重复领取。"
+  template-missing: "未配置有效奖励模板，请联系管理员。"
+  binding-missing: "未绑定B站账号。"
+  busy: "该奖励已领取或处理中；异常中断请联系管理员核账。"
+  incomplete: "尚未完成该视频的点赞、投币、收藏，无法领取奖励。"
+  success: "奖励执行完成，感谢你的三连支持！"
+
+login:
+  busy: "登录处理中或服务器繁忙，请稍后重试。"
+  capacity: "登录会话已满，请稍后重试。"
+  network-error: "无法连接到 B 站登录服务器，请稍后重试。"
+  generate-failed: "申请二维码失败，请联系管理员。"
+  # 可用变量：{message}
+  api-error: "B 站返回错误：{message}"
+  cancelled: "登录已取消，请重新扫码。"
+  generated: "二维码已生成。"
+  expired: "[BV] 二维码已失效，请重新执行 /jjblbl qrcode。"
+  # 可用变量：{message}
+  failure: "[BV] {message}"
+  # 可用变量：{mid}, {uname}
+  bind-success: "[BV] 已成功绑定 B 站账号 {mid} ({uname})"
+
+qr-display:
+  qr-item-name: "§b扫描二维码 · §f哔哩哔哩"
+  capacity: "二维码显示会话已满，请稍后重试"
+  qr-item-lore: ""
+
+reward-executor:
+  # 可用变量：{id}
+  invalid-item: "无效物品：{id}"
+  inventory-full: "背包空间不足，请整理背包后再领取。"
+  closing: "插件正在关闭"
+  queue-full: "发奖队列已满"
+  console-rejected: "控制台命令未被受理"
+  offline: "玩家已离线"
+  inventory-changed: "背包状态变化，须核账"
+  # 可用变量：{text}
+  message-wrapper: "[BV] {text}"
+  player-command-rejected: "玩家命令未被受理"
+  context-error: "错误的调度上下文"
+  closed: "插件已关闭，须核账"
+
+gui:
+  dependency: "[BV] 界面需要兼容的JiuJiuLib及配套CE资源，请联系管理员。"

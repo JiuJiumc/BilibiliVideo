@@ -7,6 +7,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
 
 /**
  * SQLite 写操作序列化执行器。
@@ -23,6 +25,7 @@ internal object SqliteWriteExecutor {
 
     @Volatile
     private var sqliteMode: Boolean = false
+    private val writing = ThreadLocal<Boolean>()
 
     private val threadFactory = object : ThreadFactory {
         private val counter = AtomicInteger(0)
@@ -41,7 +44,8 @@ internal object SqliteWriteExecutor {
     fun initialize(databaseType: DatabaseType) {
         sqliteMode = (databaseType == DatabaseType.SQLITE)
         if (sqliteMode && writeExecutor == null) {
-            writeExecutor = Executors.newSingleThreadExecutor(threadFactory)
+            writeExecutor = ThreadPoolExecutor(1, 1, 0, TimeUnit.SECONDS,
+                ArrayBlockingQueue(128), threadFactory, ThreadPoolExecutor.AbortPolicy())
         }
     }
 
@@ -58,7 +62,18 @@ internal object SqliteWriteExecutor {
         return if (sqliteMode) {
             val executor = writeExecutor
                 ?: throw IllegalStateException("SqliteWriteExecutor not initialized")
-            executor.submit(Callable { operation() }).get()
+            if (writing.get() == true) return operation()
+            val future = executor.submit(Callable {
+                writing.set(true)
+                try { operation() } finally { writing.remove() }
+            })
+            try {
+                future.get(35, TimeUnit.SECONDS)
+            } catch (t: Throwable) {
+                future.cancel(true)
+                if (t is InterruptedException) Thread.currentThread().interrupt()
+                throw t
+            }
         } else {
             operation()
         }
@@ -74,10 +89,10 @@ internal object SqliteWriteExecutor {
             executor.shutdown()
             try {
                 if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
-                    executor.shutdownNow()
+                    executor.shutdownNow().forEach { (it as? java.util.concurrent.Future<*>)?.cancel(true) }
                 }
             } catch (e: InterruptedException) {
-                executor.shutdownNow()
+                executor.shutdownNow().forEach { (it as? java.util.concurrent.Future<*>)?.cancel(true) }
                 Thread.currentThread().interrupt()
             }
         }

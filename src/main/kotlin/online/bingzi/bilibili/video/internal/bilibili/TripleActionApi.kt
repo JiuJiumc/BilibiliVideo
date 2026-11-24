@@ -29,7 +29,8 @@ object TripleActionApi {
             url = url,
             credentialCookieHeader = cookie
         )
-        val data = resp.data ?: return false
+        check(resp.code == 0) { "B站接口错误: ${resp.code}" }
+        val data = resp.data ?: error("B站未返回检测数据")
         return data == 1
     }
 
@@ -50,7 +51,8 @@ object TripleActionApi {
             url = url,
             credentialCookieHeader = cookie
         )
-        val data = resp.data ?: return 0
+        check(resp.code == 0) { "B站接口错误: ${resp.code}" }
+        val data = resp.data ?: error("B站未返回投币数据")
         return data.multiply
     }
 
@@ -64,14 +66,21 @@ object TripleActionApi {
         accessKey: String?,
         bvid: String
     ): Boolean {
-        val url =
-            "https://api.bilibili.com/x/v2/fav/video/favoured?aid=$bvid"
+        val video = BilibiliHttpClient.get<BilibiliResponse<com.google.gson.JsonObject>>(
+            "https://api.bilibili.com/x/web-interface/view?bvid=$bvid",
+            buildCookie(sessData, biliJct, buvid3, accessKey)
+        )
+        check(video.code == 0) { "B站视频信息错误: ${video.code}" }
+        val aid = video.data?.get("aid")?.asLong ?: error("无法取得视频AV号")
+        check(aid > 0) { "视频AV号无效" }
+        val url = "https://api.bilibili.com/x/v2/fav/video/favoured?aid=$aid"
         val cookie = buildCookie(sessData, biliJct, buvid3, accessKey)
         val resp = BilibiliHttpClient.get<BilibiliResponse<FavouredData>>(
             url = url,
             credentialCookieHeader = cookie
         )
-        val data = resp.data ?: return false
+        check(resp.code == 0) { "B站接口错误: ${resp.code}" }
+        val data = resp.data ?: error("B站未返回检测数据")
         return data.favoured
     }
 

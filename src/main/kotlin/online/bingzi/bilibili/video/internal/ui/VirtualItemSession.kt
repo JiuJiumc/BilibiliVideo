@@ -1,105 +1,114 @@
 package online.bingzi.bilibili.video.internal.ui
 
+import online.bingzi.bilibili.video.internal.Messages
+import online.bingzi.bilibili.video.internal.ChatMessages
+
 import online.bingzi.bilibili.video.internal.nms.NMSPacketHandler
 import online.bingzi.bilibili.video.internal.util.QrCodeGenerator
 import org.bukkit.entity.Player
 import org.bukkit.map.MapPalette
-import org.bukkit.map.MapView
 import java.awt.Color
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 虚拟物品会话管理。
  *
  * 负责：
  * - 发送虚拟二维码地图物品到玩家主手槽位
- * - 保存玩家原主手物品和创建的 MapView
- * - 在扫码结束后刷新背包恢复原物品并清理 MapView
+ * - 真实背包不变，限时维护客户端覆盖层，抵抗关菜单后的背包同步
+ * - 扫码结束、交互退出或下线时清理覆盖层；不创建世界MapView
  */
 object VirtualItemSession {
 
-    private data class Session(
-        val mapView: MapView
-    )
-
-    private val sessions = ConcurrentHashMap<UUID, Session>()
-
-    /**
-     * 发送虚拟二维码物品到玩家主手槽位。
-     *
-     * @param player 目标玩家
-     * @param qrUrl 二维码 URL
-     */
-    fun sendVirtualItem(player: Player, qrUrl: String) {
-        // 1. 生成二维码图像
-        val qrImage = QrCodeGenerator.generateQrImage(qrUrl, 128)
-
-        // 2. 创建 MapView 和地图物品（直接返回配对的结果，避免 ID 不匹配）
-        val (mapItem, mapView) = QrMapService.createQrMapItem(player, qrUrl)
-
-        // 3. 保存会话
-        sessions[player.uniqueId] = Session(mapView)
-
-        // 4. 发送地图物品到主手槽位（网络槽位 = 36 + heldItemSlot）
-        val slot = 36 + player.inventory.heldItemSlot
-        NMSPacketHandler.instance.sendSlotItem(player, slot, mapItem)
-
-        // 5. 将二维码图像转换为 MapPalette 颜色数组并发送地图数据
-        val colors = imageToMapColors(qrImage)
-        NMSPacketHandler.instance.sendMapData(player, mapView, colors)
+    // 客户端专用高位ID；不调用Bukkit.createMap，不写入世界地图存储。
+    private val VIRTUAL_MAP_ID get() = online.bingzi.bilibili.video.internal.SafetySettings.virtualMapId
+    private val sessions = QrDisplaySessions<org.bukkit.inventory.ItemStack> {
+        online.bingzi.bilibili.video.internal.SafetySettings.maxSessions
     }
+    private val expiry = java.util.concurrent.ScheduledThreadPoolExecutor(1) { r ->
+        Thread(r, "JiuJiublbl-MapExpiry").apply { isDaemon = true }
+    }.apply { removeOnCancelPolicy = true }
 
-    /**
-     * 恢复玩家原物品（刷新背包使虚拟物品消失）。
-     *
-     * @param player 目标玩家
-     */
-    fun restoreItem(player: Player) {
-        val session = sessions.remove(player.uniqueId) ?: return
-
-        // 1. 清理 MapView 渲染器（避免内存泄漏）
-        cleanupMapView(session.mapView)
-
-        // 2. 刷新背包（恢复真实物品）
-        NMSPacketHandler.instance.refreshInventory(player)
-    }
-
-    /**
-     * 清理离线玩家数据。
-     *
-     * @param playerUuid 玩家 UUID
-     */
-    fun cleanup(playerUuid: UUID) {
-        val session = sessions.remove(playerUuid) ?: return
-        cleanupMapView(session.mapView)
-    }
-
-    /**
-     * 检查玩家是否有活跃的虚拟物品会话。
-     */
-    fun hasSession(playerUuid: UUID): Boolean {
-        return sessions.containsKey(playerUuid)
-    }
-
-    /**
-     * 清理 MapView 的渲染器。
-     */
-    private fun cleanupMapView(mapView: MapView) {
-        try {
-            mapView.renderers.toList().forEach { renderer ->
-                mapView.removeRenderer(renderer)
+    fun initialize() {
+        expiry.scheduleWithFixedDelay({
+            sessions.forEach { uuid, entry ->
+                if (entry.queued.compareAndSet(false, true)) {
+                    online.bingzi.bilibili.video.internal.TaskScheduler.entity(uuid,
+                        retired = { sessions.remove(uuid, entry); entry.queued.set(false) }) { player ->
+                        try {
+                            if (sessions.current(uuid, entry)) {
+                                if (System.currentTimeMillis() >= entry.deadline || player.isDead ||
+                                    player.inventory.heldItemSlot != entry.slot ||
+                                    player.openInventory.type != org.bukkit.event.inventory.InventoryType.CRAFTING) {
+                                    restoreItem(player)
+                                } else {
+                                    updateText(entry.payload)
+                                    NMSPacketHandler.instance.sendSlotItem(player, 36 + entry.slot, entry.payload)
+                                }
+                            }
+                        } catch (t: Throwable) {
+                            restoreItem(player)
+                            online.bingzi.bilibili.video.internal.warning("二维码显示刷新失败: ${t.javaClass.simpleName}")
+                        } finally { entry.queued.set(false) }
+                    }
+                }
             }
-        } catch (_: Throwable) {
-            // 忽略清理失败
+        }, 250, online.bingzi.bilibili.video.internal.SafetySettings.qrRefreshMillis, java.util.concurrent.TimeUnit.MILLISECONDS)
+    }
+
+    @Suppress("DEPRECATION")
+    fun sendVirtualItem(player: Player, qrUrl: String) {
+        val image = QrCodeGenerator.generateQrImage(qrUrl, 128)
+        val item = org.bukkit.inventory.ItemStack(org.bukkit.Material.FILLED_MAP)
+        val meta = item.itemMeta as org.bukkit.inventory.meta.MapMeta
+        meta.mapId = VIRTUAL_MAP_ID
+        item.itemMeta = meta
+        updateText(item)
+        // 关菜单后可能还有已排队的真实背包同步；后续限时刷新会重新补上覆盖层。
+        player.closeInventory()
+        val entry = QrDisplaySessions.Entry(player.inventory.heldItemSlot,
+            System.currentTimeMillis() + online.bingzi.bilibili.video.internal.SafetySettings.sessionMillis, item)
+        check(sessions.put(player.uniqueId, entry)) { Messages.text("qr-display.capacity") }
+        try {
+            NMSPacketHandler.instance.sendSlotItem(player, 36 + player.inventory.heldItemSlot, item)
+            NMSPacketHandler.instance.sendMapData(player, VIRTUAL_MAP_ID, imageToMapColors(image))
+        } catch (t: Throwable) {
+            restoreItem(player)
+            throw t
         }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun updateText(item: org.bukkit.inventory.ItemStack) {
+        val name = ChatMessages.codes(Messages.text("qr-display.qr-item-name"))
+        val lore = ChatMessages.codes(Messages.text("qr-display.qr-item-lore"))
+        val meta = item.itemMeta
+        // 配置没变时不重复写入元数据；reload后下次补发自动更新。
+        val lines = if (lore.isEmpty()) emptyList() else lore.lines()
+        if (meta.displayName != name || meta.lore.orEmpty() != lines) {
+            meta.setDisplayName(name)
+            meta.lore = lines
+            item.itemMeta = meta
+        }
+    }
+
+    fun restoreItem(player: Player) {
+        if (sessions.remove(player.uniqueId) != null) NMSPacketHandler.instance.refreshInventory(player)
+    }
+    fun cleanup(playerUuid: UUID) { sessions.remove(playerUuid) }
+    fun hasSession(playerUuid: UUID): Boolean = sessions.contains(playerUuid)
+    fun shutdown() {
+        expiry.shutdownNow()
+        // 停服时网络会话关闭；不在已禁用插件上新建Entity任务。
+        // 不支持热卸载；更新必须完整重启，真实背包从未改变。
+        sessions.clear()
     }
 
     /**
      * 将 BufferedImage 转换为 MapPalette 颜色字节数组。
      *
      * 地图数据格式：128x128 字节数组，每个字节是 MapPalette 颜色索引。
-     * 重要：Minecraft 地图数据是**列优先**排列：colors[x * 128 + y]
+     * 地图数据按行排列：colors[y * 128 + x]
      * （从左上角开始，一列一列地写入）
      *
      * 注意：不使用 MapPalette.matchColor，因为在某些版本上可能返回不正确的索引。
@@ -116,8 +125,8 @@ object VirtualItemSession {
                 val rgb = Color(image.getRGB(x, y))
                 val gray = (rgb.red + rgb.green + rgb.blue) / 3
                 // 使用 MapPalette 预定义常量，比 matchColor 更可靠
-                // 注意：Minecraft 地图数据是列优先排列 (column-major)
-                colors[x * 128 + y] = if (gray < 128) MapPalette.DARK_GRAY else MapPalette.WHITE
+                // 注意：Minecraft 地图数据是行优先排列 (row-major)
+                colors[y * 128 + x] = if (gray < 128) MapPalette.DARK_GRAY else MapPalette.WHITE
             }
         }
         return colors

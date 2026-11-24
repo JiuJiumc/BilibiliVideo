@@ -22,6 +22,9 @@ internal object CredentialRepository {
             .firstOrNull()
     }
 
+    fun findPage(limit: Int = 50): List<Credential> = db.from(Credentials)
+        .select().limit(0, limit.coerceIn(1, 50)).map { it.toCredential() }
+
     fun findAll(): List<Credential> {
         return db.from(Credentials)
             .select()

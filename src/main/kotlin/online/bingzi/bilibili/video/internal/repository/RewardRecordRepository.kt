@@ -43,6 +43,27 @@ internal object RewardRecordRepository {
             .map { it.toRewardRecord() }
     }
 
+    /** 只返回存在性，不把同目标的历史记录整批加载到堆内存。 */
+    fun hasSuccessful(playerUuid: String?, bilibiliMid: Long?, targetKey: String, rewardKey: String): Boolean =
+        DatabaseFactory.database().useConnection { connection ->
+            hasSuccessful(connection,playerUuid,bilibiliMid,targetKey,rewardKey)
+        }
+
+    internal fun hasSuccessful(connection: java.sql.Connection, playerUuid: String?, bilibiliMid: Long?, targetKey: String, rewardKey: String): Boolean {
+            val filters=mutableListOf("target_key=?", "reward_key=?", "status=1")
+            if (playerUuid != null) filters.add("player_uuid=?")
+            if (bilibiliMid != null) filters.add("bilibili_mid=?")
+            require(playerUuid != null || bilibiliMid != null)
+            val table=online.bingzi.bilibili.video.internal.DATABASE_TABLE_PREFIX + "reward_record"
+            return connection.prepareStatement("SELECT 1 FROM $table WHERE ${filters.joinToString(" AND ")} LIMIT 1").use { statement ->
+                var i=1
+                statement.setString(i++,targetKey); statement.setString(i++,rewardKey)
+                if(playerUuid != null) statement.setString(i++,playerUuid)
+                if(bilibiliMid != null) statement.setLong(i,bilibiliMid)
+                statement.executeQuery().use { it.next() }
+            }
+        }
+
     fun insert(
         playerUuid: String,
         playerName: String,

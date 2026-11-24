@@ -3,7 +3,7 @@ package online.bingzi.bilibili.video.internal.database
 import online.bingzi.bilibili.video.internal.config.DatabaseConfig
 import online.bingzi.bilibili.video.internal.config.DatabaseType
 import org.ktorm.database.Database
-import taboolib.common.platform.function.info
+import online.bingzi.bilibili.video.internal.info
 import java.sql.Connection
 
 /**
@@ -19,6 +19,7 @@ internal object DatabaseSchemaInitializer {
 
         database.useConnection { connection ->
             executeStatements(connection, statements, config.options.showSql)
+            ClaimStore.create(connection, config.options.tablePrefix + "reward_claim")
         }
 
         // 执行迁移语句

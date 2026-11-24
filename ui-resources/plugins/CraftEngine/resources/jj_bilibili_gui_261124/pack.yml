@@ -1,0 +1,7 @@
+# 三连菜单增量皮肤；不覆盖已有共享图集及着色器。
+namespace: jj_bilibili_gui_261124
+enable: true
+name: "哔哩哔哩三连界面"
+version: "1.0.1"
+author: "JiuJiu"
+description: "BilibiliVideo内置GUI；复用JiuJiuLib共享图集协议。"

@@ -107,8 +107,11 @@ internal object BoundAccountRepository {
             set(it.bilibiliName, bilibiliName)
             set(it.status, status)
             set(it.updatedAt, System.currentTimeMillis())
+            // 同账号可更新；只有服主置为停用的记录才能换绑。
+            // 条件与更新在同一条SQL中执行，防止两个扫码请求先读后写覆盖有效绑定。
             where {
-                it.playerUuid eq playerUuid
+                (it.playerUuid eq playerUuid) and
+                    ((it.status eq 0) or (it.bilibiliMid eq bilibiliMid))
             }
         }
     }
