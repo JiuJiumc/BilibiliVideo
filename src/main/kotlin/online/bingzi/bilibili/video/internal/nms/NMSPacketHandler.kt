@@ -2,13 +2,12 @@ package online.bingzi.bilibili.video.internal.nms
 
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
-import org.bukkit.map.MapView
-import taboolib.module.nms.nmsProxy
+
 
 /**
  * NMS 发包抽象层。
  *
- * 提供跨版本（1.12 - 最新）的物品槽位发包能力，用于发送虚拟物品。
+ * 当前维护实现针对26.2 Mojang映射，用于发送虚拟物品。
  */
 abstract class NMSPacketHandler {
 
@@ -30,12 +29,12 @@ abstract class NMSPacketHandler {
      * 发送地图数据到玩家客户端。
      *
      * @param player 目标玩家
-     * @param mapView 地图视图
+     * @param mapId 客户端虚拟地图编号
      * @param colors 128x128 地图颜色数据（MapPalette 颜色字节数组）
      */
-    abstract fun sendMapData(player: Player, mapView: MapView, colors: ByteArray)
+    abstract fun sendMapData(player: Player, mapId: Int, colors: ByteArray)
 
     companion object {
-        val instance by lazy { nmsProxy<NMSPacketHandler>() }
+        val instance by lazy { NMSPacketHandlerImpl() }
     }
 }

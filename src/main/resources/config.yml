@@ -1,27 +1,57 @@
 reward:
   # 奖励判重策略
-  # PLAYER_AND_BILIBILI - 玩家和 B 站账户同时记录（最严格：同一玩家 + 同一 B 站号只能领一次）
+  # PLAYER_AND_BILIBILI - 按玩家和B站号组合判重，换号可能再次领取；防刷建议保持PLAYER_ONLY
   # BILIBILI_ONLY       - 仅记录 B 站账户（同一 B 站号只能领一次，玩家换号可重新领）
   # PLAYER_ONLY         - 仅记录玩家（同一玩家只能领一次，换号无法重新领，默认值，兼容旧版本行为）
   dedup-strategy: "PLAYER_ONLY"
 
   templates:
     default:
-      description: "完成三连时发放的默认奖励示例"
-      kether:
-        # 仅作为示例，实际脚本可根据需要自行编写
-        - 'tell "&a你已完成该视频的三连，感谢支持！"'
+      description: "钻石×1、牛排×16、附魔之瓶×16"
+      # 原生动作：item 物品ID 数量；message 提示；console 控制台命令；player 玩家命令。
+      # 玩家所属线程发物品，空间不足时拒绝；无需PlaceholderAPI或脚本引擎。
+      actions:
+        - 'item minecraft:diamond 1'
+        - 'item minecraft:cooked_beef 16'
+        - 'item minecraft:experience_bottle 16'
+        - 'message 感谢你支持啾啾服务器！三连礼物：钻石×1、牛排×16、附魔之瓶×16。'
 
     vip:
-      description: "示例：某些视频使用更高档奖励"
-      kether:
-        - 'tell "&6你对该视频的支持获得了 VIP 奖励！"'
+      description: "备用模板（仅提示，未绑定活动）"
+      actions:
+        - 'message 感谢你的三连支持！'
 
-  # 针对特定 bvid 的奖励配置
+  # 宣传视频活动；新增视频只需在此追加一组，BV号不填完整网址。
+  # rewardKey引用上方奖励模板；name为菜单名称，lore为悬浮说明。
+  # name/lore优先使用此处；旧配置未填写时兼容gui.yml同BV号设置。
   videos:
-    # 完全自定义的示例：BV1xxxxx 使用 vip 模板
-    BV1xxxxx:
-      rewardKey: "vip"
+    BV1oHyjzMEXM:
+      rewardKey: "default"
+      name: '宣传视频一'
+      lore:
+        - '啾啾空岛即将公测'
+        - '正版验证｜不限生电'
+        - '趣味插件｜玩家友好'
+        - '三连礼物：钻石×1、牛排×16、附魔之瓶×16'
+        - '每位玩家该视频奖励限领一次'
 
-    # 如果仅配置了 bvid 但不写 rewardKey，将自动回退到 templates.default
-    BV2yyyyy: { }
+# 资源安全限制；修改以下项目后完整重启，reload仅重载奖励配置。
+safety:
+  # 后台联网和数据库工作线程数，1～16；默认4适合轻量活动。
+  io-threads: 4
+  # 等待队列8～1024；队列满会拒绝新请求，避免内存持续增长。
+  io-queue: 128
+  # 同时受理的玩家操作1～512；每个玩家同一时间只处理一个请求。
+  max-operations: 64
+  # 同时保存的二维码会话1～512，过期或退出自动清理。
+  max-login-sessions: 128
+  # 扫码查询间隔2～30秒，越小B站接口压力越高。
+  poll-seconds: 3
+  # 登录会话30～180秒，不能超过B站二维码有效期。
+  session-seconds: 180
+  # 单次HTTP完整超时3～30秒；连接/读写还有独立较短超时。
+  http-timeout-seconds: 15
+  # 仅客户端显示的地图ID，10亿～2147483647；与其他虚拟地图插件冲突时调整。
+  virtual-map-id: 2000000001
+  # 二维码临时显示补发间隔100～2000毫秒；仅显示期间运行，防止背包同步冲掉地图。
+  qr-refresh-millis: 250

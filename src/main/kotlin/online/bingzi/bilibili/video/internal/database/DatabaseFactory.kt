@@ -8,9 +8,9 @@ import online.bingzi.bilibili.video.internal.config.DatabaseConfigManager
 import online.bingzi.bilibili.video.internal.config.DatabaseType
 import online.bingzi.bilibili.video.internal.config.SqliteSection
 import org.ktorm.database.Database
-import taboolib.common.platform.function.getDataFolder
-import taboolib.common.platform.function.info
-import taboolib.common.platform.function.warning
+import online.bingzi.bilibili.video.internal.getDataFolder
+import online.bingzi.bilibili.video.internal.info
+import online.bingzi.bilibili.video.internal.warning
 import java.io.File
 
 /**
@@ -48,6 +48,7 @@ internal object DatabaseFactory {
         // 覆盖表前缀，需在首次访问实体前完成
         DATABASE_TABLE_PREFIX = config.options.tablePrefix
 
+        var initializing: HikariDataSource? = null
         try {
             val jdbcUrlValue = when (config.type) {
                 DatabaseType.SQLITE -> buildSqliteJdbcUrl(config)
@@ -82,6 +83,7 @@ internal object DatabaseFactory {
             }
 
             val ds = HikariDataSource(hikariConfig)
+            initializing = ds
 
             // SQLite 优化：初始化 PRAGMA 和写操作序列化执行器
             if (config.type == DatabaseType.SQLITE) {
@@ -89,7 +91,11 @@ internal object DatabaseFactory {
                 SqliteWriteExecutor.initialize(config.type)
             }
 
-            val db = Database.connect(ds)
+            // 隔离类加载器下ServiceLoader无法可靠发现方言；分页查询必须显式指定。
+            val db = Database.connect(ds, dialect = when (config.type) {
+                DatabaseType.SQLITE -> org.ktorm.support.sqlite.SQLiteDialect()
+                DatabaseType.MYSQL -> org.ktorm.support.mysql.MySqlDialect()
+            })
 
             try {
                 DatabaseSchemaInitializer.ensureSchema(db, config)
@@ -100,10 +106,14 @@ internal object DatabaseFactory {
 
             dataSource = ds
             database = db
+            initializing = null
 
             info("[Database] 初始化完成,类型: ${config.type}, URL: $jdbcUrlValue")
         } catch (t: Throwable) {
+            initializing?.close()
+            SqliteWriteExecutor.shutdown()
             warning("[Database] 初始化失败: ${t.message}", t)
+            throw IllegalStateException("数据库初始化失败，停止启用插件", t)
         }
     }
 

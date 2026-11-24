@@ -1,0 +1,5 @@
+# 插件聊天前缀及默认正文颜色；具体提示文字在messages.yml。
+# &f为白色，&5为紫色；括号、Bilibili文字和正文可分别调整。
+prefix: '&f[&5Bilibili&f] '
+# 默认正文使用单个原版颜色代码；messages.yml正文可用&色码覆盖，修改后/jjblbl reload。
+body-color: '&f'

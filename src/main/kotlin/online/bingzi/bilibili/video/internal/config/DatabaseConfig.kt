@@ -1,7 +1,6 @@
 package online.bingzi.bilibili.video.internal.config
 
-import taboolib.module.configuration.Config
-import taboolib.module.configuration.ConfigFile
+import online.bingzi.bilibili.video.internal.loadYaml
 
 /**
  * 数据库类型。
@@ -62,17 +61,17 @@ data class DatabaseConfig(
  */
 object DatabaseConfigManager {
 
-    @Config("database.yml")
-    lateinit var file: ConfigFile
-        private set
 
     fun load(): DatabaseConfig {
+        val file = loadYaml("database.yml")
         val enabled = file.getBoolean("database.enabled", true)
         val type = when (file.getString("database.type")?.lowercase()) {
             "mysql" -> DatabaseType.MYSQL
             else -> DatabaseType.SQLITE
         }
 
+        val prefix = file.getString("database.options.table-prefix") ?: "bv_"
+        require(prefix.matches(Regex("[A-Za-z0-9_]{0,32}"))) { "数据库表前缀只允许0至32位字母数字下划线" }
         val sqlite = SqliteSection(
             file = file.getString("database.sqlite.file") ?: "bilibili_video.db",
             walMode = file.getBoolean("database.sqlite.wal-mode", true),

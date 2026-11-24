@@ -17,11 +17,13 @@ import java.util.concurrent.TimeUnit
  */
 internal object BilibiliHttpClient {
 
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    private val transport = ManagedHttpClient { OkHttpClient.Builder()
+        .callTimeout(online.bingzi.bilibili.video.internal.SafetySettings.httpSeconds, TimeUnit.SECONDS)
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
         .writeTimeout(8, TimeUnit.SECONDS)
-        .build()
+        .build() }
+    private val client: OkHttpClient get() = transport.get()
 
     private val gson: Gson = Gson()
 
@@ -44,9 +46,9 @@ internal object BilibiliHttpClient {
             .build()
 
         client.newCall(request).execute().use { resp ->
-            val body = resp.body?.string() ?: ""
+            val body = online.bingzi.bilibili.video.internal.http.HttpBody.read(resp.body)
             if (!resp.isSuccessful) {
-                error("HTTP GET failed: $url, code=${resp.code}, body=$body")
+                error("HTTP GET failed: $url, code=${resp.code}")
             }
             val type = object : TypeToken<T>() {}.type
             return gson.fromJson(body, type)
@@ -75,14 +77,16 @@ internal object BilibiliHttpClient {
             .build()
 
         client.newCall(request).execute().use { resp ->
-            val body = resp.body?.string() ?: ""
+            val body = online.bingzi.bilibili.video.internal.http.HttpBody.read(resp.body)
             if (!resp.isSuccessful) {
-                error("HTTP POST failed: $url, code=${resp.code}, body=$body")
+                error("HTTP POST failed: $url, code=${resp.code}")
             }
             val type = object : TypeToken<T>() {}.type
             return gson.fromJson(body, type)
         }
     }
+
+    fun shutdown() { transport.close() }
 
     fun buildCookieHeader(sessData: String, biliJct: String, buvid3: String?, accessKey: String?): String {
         val list = mutableListOf<String>()
