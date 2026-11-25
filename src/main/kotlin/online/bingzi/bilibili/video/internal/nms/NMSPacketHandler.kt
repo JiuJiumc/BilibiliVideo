@@ -25,6 +25,9 @@ abstract class NMSPacketHandler {
      */
     abstract fun refreshInventory(player: Player)
 
+    /** 监听Q/Ctrl+Q动作，返回本会话清理句柄；onDrop在网络线程运行。 */
+    abstract fun watchDrop(player: Player, onDrop: () -> Boolean): AutoCloseable
+
     /**
      * 发送地图数据到玩家客户端。
      *
