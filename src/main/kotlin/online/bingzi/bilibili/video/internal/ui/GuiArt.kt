@@ -7,7 +7,7 @@ import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.format.TextColor
 import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.text.format.ShadowColor
-import online.bingzi.bilibili.video.internal.bukkitPlugin
+import taboolib.platform.util.bukkitPlugin
 
 /** 使用同一共享物理图集、调色板与偏移协议；不复制旧字形或改写Lib注册表。 */
 internal object GuiArt {

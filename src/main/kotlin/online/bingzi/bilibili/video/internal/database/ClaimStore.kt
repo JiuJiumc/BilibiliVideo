@@ -36,12 +36,6 @@ internal object ClaimStore {
             else throw e
         }
     }
-    fun exists(key: String): Boolean = DatabaseFactory.database().useConnection { connection ->
-        connection.prepareStatement("SELECT 1 FROM $table WHERE claim_key=?").use {
-            it.setString(1,key)
-            it.executeQuery().use { rows -> rows.next() }
-        }
-    }
     fun reserve(key: String, uuid: String): Boolean = DatabaseFactory.database().useConnection {
         reserve(it, table, key, uuid)
     }

@@ -8,9 +8,9 @@ import online.bingzi.bilibili.video.internal.config.DatabaseConfigManager
 import online.bingzi.bilibili.video.internal.config.DatabaseType
 import online.bingzi.bilibili.video.internal.config.SqliteSection
 import org.ktorm.database.Database
-import online.bingzi.bilibili.video.internal.getDataFolder
-import online.bingzi.bilibili.video.internal.info
-import online.bingzi.bilibili.video.internal.warning
+import taboolib.common.platform.function.getDataFolder
+import taboolib.common.platform.function.info
+import taboolib.common.platform.function.warning
 import java.io.File
 
 /**

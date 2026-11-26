@@ -1,6 +1,7 @@
 package online.bingzi.bilibili.video.internal.config
 
-import online.bingzi.bilibili.video.internal.loadYaml
+import taboolib.module.configuration.Config
+import taboolib.module.configuration.ConfigFile
 
 /**
  * 数据库类型。
@@ -61,9 +62,11 @@ data class DatabaseConfig(
  */
 object DatabaseConfigManager {
 
+    @Config("database.yml")
+    lateinit var file: ConfigFile
+        private set
 
     fun load(): DatabaseConfig {
-        val file = loadYaml("database.yml")
         val enabled = file.getBoolean("database.enabled", true)
         val type = when (file.getString("database.type")?.lowercase()) {
             "mysql" -> DatabaseType.MYSQL

@@ -12,7 +12,6 @@ object SafetySettings {
     var sessionMillis = 180_000L; private set
     var httpSeconds = 15L; private set
     var virtualMapId = 2_000_000_001; private set
-    var qrRefreshMillis = 250L; private set
     fun load() {
         val config = RewardConfigManager.file
         fun int(key: String, default: Int, range: IntRange): Int {
@@ -28,6 +27,5 @@ object SafetySettings {
         sessionMillis = int("session-seconds", 180, 30..180) * 1000L
         httpSeconds = int("http-timeout-seconds", 15, 3..30).toLong()
         virtualMapId = int("virtual-map-id", 2_000_000_001, 1_000_000_000..Int.MAX_VALUE)
-        qrRefreshMillis = int("qr-refresh-millis", 250, 100..2000).toLong()
     }
 }

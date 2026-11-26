@@ -1,8 +1,6 @@
 package online.bingzi.bilibili.video.internal.ui
 
 import online.bingzi.bilibili.video.internal.util.QrCodeGenerator
-import online.bingzi.bilibili.video.internal.Messages
-import online.bingzi.bilibili.video.internal.ChatMessages
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
@@ -49,7 +47,7 @@ object QrMapService {
         val meta = item.itemMeta
         if (meta != null) {
             MapViewCompat.setMapOnMeta(meta, mapView)
-            meta.setDisplayName(ChatMessages.codes(Messages.text("qr-display.qr-item-name")))
+            meta.setDisplayName("§b扫描地图上的二维码绑定 B 站")
             item.itemMeta = meta
         }
 

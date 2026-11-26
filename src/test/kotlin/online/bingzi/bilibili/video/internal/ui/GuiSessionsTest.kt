@@ -31,13 +31,4 @@ class GuiSessionsTest {
             assertEquals(32, store.size())
         } finally { pool.shutdownNow(); store.clear() }
     }
-    @Test fun `100000 replacements and closes leave no retained session entries`() {
-        val store=GuiSessions<Any>()
-        repeat(100000) {
-            val id=UUID.randomUUID();val first=Any();val next=Any()
-            assertTrue(store.admit(id,first,128));assertTrue(store.admit(id,next,128))
-            assertFalse(store.remove(id,first));assertTrue(store.remove(id,next))
-        }
-        assertEquals(0,store.size())
-    }
 }

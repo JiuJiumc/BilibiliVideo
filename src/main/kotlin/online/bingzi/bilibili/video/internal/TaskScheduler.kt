@@ -2,7 +2,7 @@ package online.bingzi.bilibili.video.internal
 
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
-import online.bingzi.bilibili.video.internal.bukkitPlugin
+import taboolib.platform.util.bukkitPlugin
 import java.util.UUID
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
@@ -16,7 +16,7 @@ object TaskScheduler {
     private val running = AtomicBoolean(false)
     private val sequence = AtomicInteger()
     private val io by lazy { ThreadPoolExecutor(SafetySettings.ioThreads, SafetySettings.ioThreads, 0, TimeUnit.SECONDS, ArrayBlockingQueue(SafetySettings.ioQueue),
-        { r -> Thread(r, "JiuJiublbl-IO-${sequence.incrementAndGet()}").apply { isDaemon = true } },
+        { r -> Thread(r, "BilibiliVideo-IO-${sequence.incrementAndGet()}").apply { isDaemon = true } },
         ThreadPoolExecutor.AbortPolicy()) }
 
     fun initialize() {
@@ -46,14 +46,8 @@ object TaskScheduler {
         }
     }
 
-    fun global(task: () -> Unit) {
-        if (!running.get()) return
-        if (folia) Bukkit.getGlobalRegionScheduler().run(bukkitPlugin) { if (running.get()) task() }
-        else Bukkit.getScheduler().runTask(bukkitPlugin, Runnable { if (running.get()) task() })
-    }
-
     fun shutdown() {
-        if (!running.getAndSet(false)) return
+        running.set(false)
         io.shutdownNow()
         try { io.awaitTermination(3, TimeUnit.SECONDS) }
         catch (_: InterruptedException) { Thread.currentThread().interrupt() }

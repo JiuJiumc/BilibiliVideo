@@ -1,7 +1,5 @@
 package online.bingzi.bilibili.video.internal.service
 
-import online.bingzi.bilibili.video.internal.Messages
-
 import online.bingzi.bilibili.video.internal.config.DedupStrategy
 import online.bingzi.bilibili.video.internal.config.RewardConfigManager
 import online.bingzi.bilibili.video.internal.config.RewardTemplate
@@ -15,7 +13,7 @@ import online.bingzi.bilibili.video.internal.database.ClaimStore
  * 当前实现：
  * - 基于「玩家 + bvid」检测是否完成三连
  * - 若完成且未领取过，则记录一条奖励记录
- * - 根据 rewardKey 从配置中载入 原生奖励模板，供命令层执行
+ * - 根据 rewardKey 从配置中载入 Kether 奖励模板，供命令层执行
  */
 object RewardService {
 
@@ -47,14 +45,31 @@ object RewardService {
         if (!RewardConfigManager.isBvidConfigured(bvid)) {
             return RewardResult(
                 success = false,
-                message = Messages.text("reward.unregistered")
+                message = "该稿件未在 config.yml 的 reward.videos 中登记，无法领取奖励。"
             )
         }
 
         // 获取玩家绑定的 B 站账号信息
 
         val boundAccount = BoundAccountRepository.findByPlayerUuid(playerUuid)
-        val bilibiliMid = boundAccount?.bilibiliMid ?: return RewardResult(false, Messages.text("reward.unbound"))
+        val bilibiliMid = boundAccount?.bilibiliMid ?: return RewardResult(false, "你还未绑定B站账号。")
+
+        // 检查三连状态
+        val tripleResult = CredentialService.checkTripleByMid(bilibiliMid, bvid)
+        if (!tripleResult.success || tripleResult.tripleStatus == null) {
+            return RewardResult(
+                success = false,
+                message = tripleResult.message
+            )
+        }
+
+        val tripleStatus = tripleResult.tripleStatus
+        if (!tripleStatus.isTriple) {
+            return RewardResult(
+                success = false,
+                message = "尚未完成该视频的点赞、投币、收藏，无法领取奖励。"
+            )
+        }
 
         // 解析奖励模板
         val resolve = RewardConfigManager.resolveForBvid(bvid, defaultKey = rewardKey)
@@ -72,44 +87,25 @@ object RewardService {
 
         if (alreadyClaimed) {
             val strategyHint = when (dedupStrategy) {
-                DedupStrategy.PLAYER_AND_BILIBILI -> Messages.text("reward.hint-pair")
-                DedupStrategy.BILIBILI_ONLY -> Messages.text("reward.hint-bilibili")
-                DedupStrategy.PLAYER_ONLY -> Messages.text("reward.hint-player")
+                DedupStrategy.PLAYER_AND_BILIBILI -> "（当前玩家 + 当前 B 站账号）"
+                DedupStrategy.BILIBILI_ONLY -> "（当前 B 站账号）"
+                DedupStrategy.PLAYER_ONLY -> "（当前玩家）"
             }
             return RewardResult(
                 success = false,
-                message = Messages.text("reward.already-claimed", "strategyHint" to (strategyHint))
+                message = "你已经领取过该任务的奖励$strategyHint，无法重复领取。"
             )
         }
 
-        val template = resolve.template ?: return RewardResult(false, Messages.text("reward.template-missing"))
+        val template = resolve.template ?: return RewardResult(false, "未配置有效奖励模板，请联系管理员。")
         val identity = when (dedupStrategy) {
             DedupStrategy.PLAYER_ONLY -> playerUuid
-            DedupStrategy.BILIBILI_ONLY -> bilibiliMid?.toString() ?: return RewardResult(false, Messages.text("reward.binding-missing"))
-            DedupStrategy.PLAYER_AND_BILIBILI -> "$playerUuid:${bilibiliMid ?: return RewardResult(false, Messages.text("reward.binding-missing")) }"
+            DedupStrategy.BILIBILI_ONLY -> bilibiliMid?.toString() ?: return RewardResult(false, "未绑定B站账号。")
+            DedupStrategy.PLAYER_AND_BILIBILI -> "$playerUuid:${bilibiliMid ?: return RewardResult(false, "未绑定B站账号。") }"
         }
         val claimKey = ClaimStore.key(dedupStrategy.name, identity, targetKey, resolvedRewardKey)
-        if (ClaimStore.exists(claimKey)) return RewardResult(false, Messages.text("reward.busy"))
-        // 本地已领取及处理中直接返回，仅新请求访问B站。
-        // 检查三连状态
-        val tripleResult = CredentialService.checkTripleByMid(bilibiliMid, bvid)
-        if (!tripleResult.success || tripleResult.tripleStatus == null) {
-            return RewardResult(
-                success = false,
-                message = tripleResult.message
-            )
-        }
-
-        val tripleStatus = tripleResult.tripleStatus
-        if (!tripleStatus.isTriple) {
-            return RewardResult(
-                success = false,
-                message = Messages.text("reward.incomplete")
-            )
-        }
-
-        if (!ClaimStore.reserve(claimKey, playerUuid)) return RewardResult(false, Messages.text("reward.busy"))
-        return RewardResult(true, Messages.text("reward.success"), template, bvid, targetKey, claimKey, bilibiliMid)
+        if (!ClaimStore.reserve(claimKey, playerUuid)) return RewardResult(false, "该奖励已领取或处理中；异常中断请联系管理员核账。")
+        return RewardResult(true, "奖励执行完成，感谢你的三连支持！", template, bvid, targetKey, claimKey, bilibiliMid)
     }
 
     fun complete(result: RewardResult, playerUuid: String, playerName: String, success: Boolean) {
@@ -132,10 +128,36 @@ object RewardService {
         targetKey: String,
         rewardKey: String
     ): Boolean {
-        return when(strategy) {
-            DedupStrategy.PLAYER_ONLY -> RewardRecordRepository.hasSuccessful(playerUuid,null,targetKey,rewardKey)
-            DedupStrategy.BILIBILI_ONLY -> bilibiliMid != null && RewardRecordRepository.hasSuccessful(null,bilibiliMid,targetKey,rewardKey)
-            DedupStrategy.PLAYER_AND_BILIBILI -> RewardRecordRepository.hasSuccessful(playerUuid,bilibiliMid,targetKey,rewardKey)
+        return when (strategy) {
+            DedupStrategy.PLAYER_ONLY -> {
+                val existing = RewardRecordRepository.findAllByPlayerAndTarget(playerUuid, targetKey)
+                existing.any { it.rewardKey == rewardKey && it.status == 1 }
+            }
+
+            DedupStrategy.BILIBILI_ONLY -> {
+                if (bilibiliMid == null) {
+                    // 没有绑定 B 站账号，理论上不应该走到这里，但保险起见返回 false
+                    false
+                } else {
+                    val existing = RewardRecordRepository.findAllByBilibiliMidAndTarget(bilibiliMid, targetKey)
+                    existing.any { it.rewardKey == rewardKey && it.status == 1 }
+                }
+            }
+
+            DedupStrategy.PLAYER_AND_BILIBILI -> {
+                if (bilibiliMid == null) {
+                    // 没有绑定 B 站账号，回退到仅检查玩家
+                    val existing = RewardRecordRepository.findAllByPlayerAndTarget(playerUuid, targetKey)
+                    existing.any { it.rewardKey == rewardKey && it.status == 1 }
+                } else {
+                    val existing = RewardRecordRepository.findAllByPlayerAndBilibiliMidAndTarget(
+                        playerUuid,
+                        bilibiliMid,
+                        targetKey
+                    )
+                    existing.any { it.rewardKey == rewardKey && it.status == 1 }
+                }
+            }
         }
     }
 }

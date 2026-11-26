@@ -1,8 +1,8 @@
 package online.bingzi.bilibili.video.internal.config
 
-import online.bingzi.bilibili.video.internal.warning
-import org.bukkit.configuration.file.YamlConfiguration
-import online.bingzi.bilibili.video.internal.loadYaml
+import taboolib.common.platform.function.warning
+import taboolib.module.configuration.Config
+import taboolib.module.configuration.ConfigFile
 
 /**
  * 奖励判重策略枚举。
@@ -40,15 +40,15 @@ data class RewardTemplate(
 
 object RewardConfigManager {
 
-    lateinit var file: YamlConfiguration
+    @Config("config.yml")
+    lateinit var file: ConfigFile
         private set
 
     private fun readTemplate(key: String): RewardTemplate? {
         val basePath = "reward.templates.$key"
         val section = file.getConfigurationSection(basePath) ?: return null
         val description = section.getString("description")
-        val scripts = if (section.contains("actions")) section.getStringList("actions") else section.getStringList("kether")
-        online.bingzi.bilibili.video.internal.service.RewardExecutor.validate(scripts)
+        val scripts = section.getStringList("kether")
         if (scripts.isEmpty()) {
             return null
         }
@@ -88,29 +88,19 @@ object RewardConfigManager {
         )
     }
 
-    private data class Snapshot(val videos: Map<String, ResolveResult>, val strategy: DedupStrategy,
-                                val presentations: Map<String, VideoPresentation>)
-    @Volatile private var snapshot = Snapshot(emptyMap(), DedupStrategy.PLAYER_ONLY, emptyMap())
-
-    fun initialize() { file = loadYaml("config.yml"); loadSnapshot() }
+    private data class Snapshot(val videos: Map<String, ResolveResult>, val strategy: DedupStrategy)
+    @Volatile private var snapshot = Snapshot(emptyMap(), DedupStrategy.PLAYER_ONLY)
 
     @Synchronized fun loadSnapshot() {
         val strategy = try {
             DedupStrategy.valueOf((file.getString("reward.dedup-strategy") ?: "PLAYER_ONLY").uppercase().replace("-", "_"))
         } catch (_: IllegalArgumentException) { error("无效的奖励判重策略") }
-        file.getConfigurationSection("reward.templates")?.getKeys(false).orEmpty().forEach { key ->
-            require(readTemplate(key) != null) { "奖励模板不能为空：$key" }
-        }
         val videos = file.getConfigurationSection("reward.videos")?.getKeys(false).orEmpty()
-            .associateWith { id ->
-                require(id.matches(Regex("BV1[A-Za-z0-9]{9}"))) { "无效BV号：$id" }
-                readResolveForBvid(id).also { require(it.template != null) { "活动${id}的奖励模板不存在" } }
-            }
-        val presentations = videos.keys.associateWith { VideoPresentation.read(file.getConfigurationSection("reward.videos.$it")) }
-        snapshot = Snapshot(videos, strategy, presentations)
+            .associateWith { readResolveForBvid(it) }
+        snapshot = Snapshot(videos, strategy)
     }
     @Synchronized fun reload(): Boolean = try {
-        file = loadYaml("config.yml")
+        file.reload()
         loadSnapshot()
         true
     } catch (t: Throwable) { warning("奖励配置加载失败: ${t.message}"); false }
@@ -120,5 +110,4 @@ object RewardConfigManager {
     fun getConfiguredBvids(): List<String> = snapshot.videos.keys.toList()
     fun isBvidConfigured(bvid: String): Boolean = snapshot.videos.containsKey(bvid)
     fun getDedupStrategy(): DedupStrategy = snapshot.strategy
-    fun getVideoPresentations(): Map<String, VideoPresentation> = snapshot.presentations
 }

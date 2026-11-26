@@ -1,7 +1,6 @@
 package online.bingzi.bilibili.video.internal.ui
 
 import online.bingzi.bilibili.video.internal.bilibiliMessage
-import online.bingzi.bilibili.video.internal.Messages
 import city.jiujiu.lib.gui.presentation.GuiInventories
 import city.jiujiu.lib.gui.presentation.SelfSoundedInventory
 import net.kyori.adventure.text.Component
@@ -27,8 +26,8 @@ import org.bukkit.event.inventory.InventoryDragEvent
 import org.bukkit.event.player.PlayerQuitEvent
 import org.bukkit.inventory.Inventory
 import org.bukkit.inventory.ItemStack
-import online.bingzi.bilibili.video.internal.warning
-import online.bingzi.bilibili.video.internal.bukkitPlugin
+import taboolib.common.platform.function.warning
+import taboolib.platform.util.bukkitPlugin
 import java.util.UUID
 
 /** 只有玩家Entity上下文读写会话和背包；IO只传UUID、令牌、BV号和不可变结果。 */
@@ -75,7 +74,7 @@ internal object BilibiliGui : Listener {
 
     fun open(player: Player) {
         val config = settings
-        if (!available || config == null) { player.bilibiliMessage(Messages.text("gui.dependency")); return }
+        if (!available || config == null) { player.bilibiliMessage("§e[BV] 界面需要兼容的JiuJiuLib及配套CE资源，请联系管理员。"); return }
         if (!config.enabled) { player.bilibiliMessage(config.message("disabled")); return }
         if (!player.hasPermission("bilibili.video.use")) return
         if (config.requirePack && !player.hasResourcePack()) { player.bilibiliMessage(config.message("resource-pack")); return }
@@ -195,7 +194,7 @@ internal object BilibiliGui : Listener {
         val c = s.config
         when {
             action == "close" -> { cue(player, c, "back"); player.closeInventory() }
-            action == "bind" -> { cue(player, c, "click"); player.closeInventory(); player.performCommand("jjblbl qrcode") }
+            action == "bind" -> { cue(player, c, "click"); player.closeInventory(); player.performCommand("bv qrcode") }
             action == "back" -> { cue(player, c, "back"); s.selected = null; s.status = null; render(player, s) }
             action == "previous" || action == "next" -> {
                 val next = (s.page + if (action == "next") 1 else -1).coerceIn(0, maxOf(0, (s.videos.size - 1) / 3))
@@ -205,7 +204,7 @@ internal object BilibiliGui : Listener {
                 s.selected = s.videos.getOrNull(s.page * 3 + action.last().digitToInt()) ?: return
                 s.status = null; cue(player, c, "select"); render(player, s)
             }
-            action == "watch" -> { val bvid = s.selected?.bvid ?: return; cue(player, c, "click"); player.closeInventory(); player.performCommand("jjblbl videoqr $bvid") }
+            action == "watch" -> { val bvid = s.selected?.bvid ?: return; cue(player, c, "click"); player.closeInventory(); player.performCommand("bv videoqr $bvid") }
             action == "claim" -> {
                 if (s.loading || s.busy) { player.bilibiliMessage(c.message("busy")); return }
                 val bvid = s.selected?.bvid ?: return

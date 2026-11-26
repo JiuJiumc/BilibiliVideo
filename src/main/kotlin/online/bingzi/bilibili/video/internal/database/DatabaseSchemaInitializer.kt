@@ -3,7 +3,7 @@ package online.bingzi.bilibili.video.internal.database
 import online.bingzi.bilibili.video.internal.config.DatabaseConfig
 import online.bingzi.bilibili.video.internal.config.DatabaseType
 import org.ktorm.database.Database
-import online.bingzi.bilibili.video.internal.info
+import taboolib.common.platform.function.info
 import java.sql.Connection
 
 /**

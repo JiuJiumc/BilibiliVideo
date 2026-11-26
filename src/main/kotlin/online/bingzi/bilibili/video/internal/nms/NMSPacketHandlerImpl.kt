@@ -15,8 +15,8 @@ class NMSPacketHandlerImpl : NMSPacketHandler() {
     private val craftPlayer = Class.forName("$craftPackage.entity.CraftPlayer").getMethod("getHandle")
     private val connectionField = craftPlayer.returnType.getField("connection")
     private val send = connectionField.type.getMethod("send", packetClass)
-    private val slotConstructor = Class.forName("net.minecraft.network.protocol.game.ClientboundSetPlayerInventoryPacket")
-        .getConstructor(Int::class.javaPrimitiveType, itemClass)
+    private val slotConstructor = Class.forName("net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket")
+        .getConstructor(Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, itemClass)
     private val mapId = Class.forName("net.minecraft.world.level.saveddata.maps.MapId")
     private val mapIdConstructor = mapId.getConstructor(Int::class.javaPrimitiveType)
     private val patchClass = Class.forName("net.minecraft.world.level.saveddata.maps.MapItemSavedData\$MapPatch")
@@ -30,9 +30,7 @@ class NMSPacketHandlerImpl : NMSPacketHandler() {
         send.invoke(connectionField.get(craftPlayer.invoke(player)), packet)
     }
     override fun sendSlotItem(player: Player, slot: Int, item: ItemStack) {
-        require(slot in 36..44) { "二维码只能覆盖快捷栏槽位" }
-        // 26.2专用玩家背包包使用原始0..8槽位，不依赖容器窗口ID和stateId。
-        sendPacket(player, slotConstructor.newInstance(slot - 36, craftItem.invoke(null, item)))
+        sendPacket(player, slotConstructor.newInstance(0, 0, slot, craftItem.invoke(null, item)))
     }
     override fun refreshInventory(player: Player) { player.updateInventory() }
     override fun sendMapData(player: Player, mapId: Int, colors: ByteArray) {

@@ -2,9 +2,7 @@ package online.bingzi.bilibili.video.internal.ui
 
 import org.bukkit.Material
 import org.bukkit.configuration.file.YamlConfiguration
-import online.bingzi.bilibili.video.internal.bukkitPlugin
-import online.bingzi.bilibili.video.internal.config.RewardConfigManager
-import online.bingzi.bilibili.video.internal.config.VideoPresentation
+import taboolib.platform.util.bukkitPlugin
 import java.io.File
 
 /** 在IO侧解析后一次性发布；已打开的会话沿用自己的不可变设置。 */
@@ -48,9 +46,8 @@ internal data class GuiSettings(
             sounds.values.forEach { require(it.matches(Regex("[a-z0-9_.-]+:[a-z0-9_./-]+"))) { "声音ID无效" } }
             val volume = y.getDouble("sounds.volume"); val pitch = y.getDouble("sounds.pitch")
             require(volume.isFinite() && volume in 0.0..1.0 && pitch.isFinite() && pitch in 0.5..2.0)
-            val videos = RewardConfigManager.getVideoPresentations().mapValues { (bvid, primary) ->
-                val merged = primary.withFallback(VideoPresentation.read(y.getConfigurationSection("videos.$bvid")))
-                VideoText(merged.name, merged.lore.orEmpty())
+            val videos = y.getConfigurationSection("videos")?.getKeys(false).orEmpty().associateWith { bvid ->
+                VideoText(y.getString("videos.$bvid.name")?.take(128), y.getStringList("videos.$bvid.lore").take(20).map { it.take(256) })
             }
             val tips = listOf("bind", "watch", "check", "claim").associateWith { key -> y.getStringList("tips.$key").take(20).map { it.take(256) } }
             return GuiSettings(y.getBoolean("enabled"), y.getBoolean("require-resource-pack"), range("max-sessions", 1, 512),

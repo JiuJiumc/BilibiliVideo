@@ -17,13 +17,12 @@ import java.util.concurrent.TimeUnit
  */
 internal object BilibiliHttpClient {
 
-    private val transport = ManagedHttpClient { OkHttpClient.Builder()
+    private val client: OkHttpClient = OkHttpClient.Builder()
         .callTimeout(online.bingzi.bilibili.video.internal.SafetySettings.httpSeconds, TimeUnit.SECONDS)
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
         .writeTimeout(8, TimeUnit.SECONDS)
-        .build() }
-    private val client: OkHttpClient get() = transport.get()
+        .build()
 
     private val gson: Gson = Gson()
 
@@ -46,7 +45,7 @@ internal object BilibiliHttpClient {
             .build()
 
         client.newCall(request).execute().use { resp ->
-            val body = online.bingzi.bilibili.video.internal.http.HttpBody.read(resp.body)
+            val body = resp.body?.string() ?: ""
             if (!resp.isSuccessful) {
                 error("HTTP GET failed: $url, code=${resp.code}")
             }
@@ -77,7 +76,7 @@ internal object BilibiliHttpClient {
             .build()
 
         client.newCall(request).execute().use { resp ->
-            val body = online.bingzi.bilibili.video.internal.http.HttpBody.read(resp.body)
+            val body = resp.body?.string() ?: ""
             if (!resp.isSuccessful) {
                 error("HTTP POST failed: $url, code=${resp.code}")
             }
@@ -86,7 +85,12 @@ internal object BilibiliHttpClient {
         }
     }
 
-    fun shutdown() { transport.close() }
+    fun shutdown() {
+        client.dispatcher.cancelAll()
+        client.connectionPool.evictAll()
+        client.dispatcher.executorService.shutdownNow()
+        client.cache?.close()
+    }
 
     fun buildCookieHeader(sessData: String, biliJct: String, buvid3: String?, accessKey: String?): String {
         val list = mutableListOf<String>()

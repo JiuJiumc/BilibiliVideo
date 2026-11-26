@@ -1,14 +1,12 @@
 package online.bingzi.bilibili.video.internal.service
 
-import online.bingzi.bilibili.video.internal.Messages
-
 import online.bingzi.bilibili.video.internal.bilibili.dto.TripleStatusResult
 import online.bingzi.bilibili.video.internal.entity.Credential
 import online.bingzi.bilibili.video.internal.repository.BoundAccountRepository
 import online.bingzi.bilibili.video.internal.repository.CredentialRepository
 import org.bukkit.entity.Player
-import online.bingzi.bilibili.video.internal.info
-import online.bingzi.bilibili.video.internal.warning
+import taboolib.common.platform.function.info
+import taboolib.common.platform.function.warning
 
 /**
  * 凭证服务层。
@@ -87,7 +85,7 @@ object CredentialService {
         val entity = CredentialRepository.findByLabel(label)
             ?: return TripleCheckResult(
                 code = TripleCheckCode.CREDENTIAL_NOT_FOUND,
-                message = Messages.text("credential.label-missing", "label" to (label))
+                message = "未找到名为 $label 的凭证。"
             )
 
         return internalCheckTripleWithCredential(entity, bvid) {
@@ -102,13 +100,13 @@ object CredentialService {
         val bound = BoundAccountRepository.findByPlayerUuid(playerUuid)
             ?: return TripleCheckResult(
                 code = TripleCheckCode.PLAYER_NOT_BOUND,
-                message = Messages.text("credential.unbound")
+                message = "你还没有绑定 B 站账号。"
             )
 
         val entity = CredentialRepository.findByBilibiliMid(bound.bilibiliMid)
             ?: return TripleCheckResult(
                 code = TripleCheckCode.CREDENTIAL_NOT_FOUND,
-                message = Messages.text("credential.bound-credential-missing")
+                message = "未找到与你绑定的 B 站账号对应的凭证。"
             )
 
         return internalCheckTripleWithCredential(entity, bvid) {
@@ -118,8 +116,8 @@ object CredentialService {
 
     fun checkTripleByMid(mid: Long, bvid: String): TripleCheckResult {
         val credential = CredentialRepository.findByBilibiliMid(mid)
-            ?: return TripleCheckResult(TripleCheckCode.CREDENTIAL_NOT_FOUND, Messages.text("credential.missing"))
-        return internalCheckTripleWithCredential(credential, bvid) { Messages.text("credential.audit-check") }
+            ?: return TripleCheckResult(TripleCheckCode.CREDENTIAL_NOT_FOUND, "未找到B站登录凭证。")
+        return internalCheckTripleWithCredential(credential, bvid) { "[BV] 三连状态查询完成" }
     }
 
     /**
@@ -133,13 +131,13 @@ object CredentialService {
         if (entity.status == 0) {
             return TripleCheckResult(
                 code = TripleCheckCode.CREDENTIAL_DISABLED,
-                message = Messages.text("credential.disabled")
+                message = "B 站凭证已被禁用。"
             )
         }
         if (entity.status == 2 || (entity.expiredAt != null && entity.expiredAt!! > 0 && entity.expiredAt!! < System.currentTimeMillis())) {
             return TripleCheckResult(
                 code = TripleCheckCode.CREDENTIAL_EXPIRED,
-                message = Messages.text("credential.expired")
+                message = "B 站凭证已过期。"
             )
         }
 
@@ -164,14 +162,14 @@ object CredentialService {
             info(successLogBuilder())
             TripleCheckResult(
                 code = TripleCheckCode.SUCCESS,
-                message = Messages.text("credential.check-success"),
+                message = "三连状态检测成功。",
                 tripleStatus = triple
             )
         } catch (t: Throwable) {
             warning("[CredentialService] 三连状态检测调用失败：${t.message}", t)
             TripleCheckResult(
                 code = TripleCheckCode.TRIPLE_CHECK_FAILED,
-                message = Messages.text("credential.check-failed")
+                message = "调用 B 站接口失败，请稍后重试或检查凭证。"
             )
         }
     }

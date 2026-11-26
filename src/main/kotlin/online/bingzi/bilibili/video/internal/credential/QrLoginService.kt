@@ -1,7 +1,5 @@
 package online.bingzi.bilibili.video.internal.credential
 
-import online.bingzi.bilibili.video.internal.Messages
-
 import online.bingzi.bilibili.video.internal.bilibiliMessage
 import com.google.gson.Gson
 import okhttp3.OkHttpClient
@@ -14,8 +12,8 @@ import online.bingzi.bilibili.video.internal.service.BindingService
 import online.bingzi.bilibili.video.internal.ui.VirtualItemSession
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
-import online.bingzi.bilibili.video.internal.info
-import online.bingzi.bilibili.video.internal.warning
+import taboolib.common.platform.function.info
+import taboolib.common.platform.function.warning
 import online.bingzi.bilibili.video.internal.TaskScheduler
 import online.bingzi.bilibili.video.internal.SafetySettings
 import java.io.IOException
@@ -47,7 +45,7 @@ object QrLoginService {
 
     private val stopped = java.util.concurrent.atomic.AtomicBoolean(false)
     private val loginGate = online.bingzi.bilibili.video.internal.OperationGate(SafetySettings.maxOperations)
-    private val transport = online.bingzi.bilibili.video.internal.http.ManagedHttpClient {
+    private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .callTimeout(SafetySettings.httpSeconds, TimeUnit.SECONDS)
             .connectTimeout(5, TimeUnit.SECONDS)
@@ -56,12 +54,10 @@ object QrLoginService {
             .build()
     }
 
-    private val client: OkHttpClient get() = transport.get()
-
     private val gson: Gson = Gson()
 
     private val scheduler = ScheduledThreadPoolExecutor(1) { r ->
-        Thread(r, "JiuJiublbl-QrTimer").apply { isDaemon = true }
+        Thread(r, "BilibiliVideo-QrTimer").apply { isDaemon = true }
     }.apply { removeOnCancelPolicy = true }
 
     private data class QrSession(
@@ -98,14 +94,14 @@ object QrLoginService {
      */
     fun startLogin(playerUuid: UUID, playerName: String): QrStartResult {
         if (stopped.get() || !loginGate.enter(playerUuid)) return QrStartResult(
-            QrStartCode.API_ERROR, Messages.text("login.busy"))
+            QrStartCode.API_ERROR, "登录处理中或服务器繁忙，请稍后重试。")
         var pendingSession: QrSession? = null
         try {
         val now = System.currentTimeMillis()
         val pending = QrSession(playerUuid, playerName, "", now, now + QR_EXPIRE_MILLIS)
         synchronized(lifecycle) {
             if (stopped.get() || sessions.size >= SafetySettings.maxSessions && !sessions.containsKey(playerUuid))
-                return QrStartResult(QrStartCode.API_ERROR, Messages.text("login.capacity"))
+                return QrStartResult(QrStartCode.API_ERROR, "登录会话已满，请稍后重试。")
             sessions[playerUuid] = pending
             pollTasks.remove(playerUuid)?.cancel(false)
         }
@@ -116,20 +112,20 @@ object QrLoginService {
             warning("[QrLoginService] 申请二维码失败：${e.message}", e)
             return QrStartResult(
                 code = QrStartCode.NETWORK_ERROR,
-                message = Messages.text("login.network-error")
+                message = "无法连接到 B 站登录服务器，请稍后重试。"
             )
         } catch (e: Throwable) {
             warning("[QrLoginService] 申请二维码时发生异常：${e.message}", e)
             return QrStartResult(
                 code = QrStartCode.API_ERROR,
-                message = Messages.text("login.generate-failed")
+                message = "申请二维码失败，请联系管理员。"
             )
         }
 
         if (generate.code != 0 || generate.data == null) {
             return QrStartResult(
                 code = QrStartCode.API_ERROR,
-                message = Messages.text("login.api-error", "message" to (generate.message))
+                message = "B 站返回错误：${generate.message}"
             )
         }
 
@@ -143,16 +139,9 @@ object QrLoginService {
 
         synchronized(lifecycle) {
             if (stopped.get() || !sessions.replace(playerUuid, pending, session))
-                return QrStartResult(QrStartCode.API_ERROR, Messages.text("login.cancelled"))
+                return QrStartResult(QrStartCode.API_ERROR, "登录已取消，请重新扫码。")
             pollTasks[playerUuid] = scheduler.scheduleWithFixedDelay(
-                {
-                    // 过期清理不排队到IO；网络故障和队列满也不能延长会话寿命。
-                    if (stopped.get() || sessions[playerUuid] !== session) return@scheduleWithFixedDelay
-                    if (System.currentTimeMillis() >= session.expireAt) {
-                        cancelSession(playerUuid, session)
-                        return@scheduleWithFixedDelay
-                    }
-                    if (loginGate.enter(playerUuid)) {
+                { if (loginGate.enter(playerUuid)) {
                     if (!TaskScheduler.async {
                         try { pollOnce(session) }
                         catch (t: Throwable) {
@@ -167,7 +156,7 @@ object QrLoginService {
         info("[QrLoginService] 已为玩家 ${playerName} 创建二维码登录会话。")
         return QrStartResult(
             code = QrStartCode.SUCCESS,
-            message = Messages.text("login.generated"),
+            message = "二维码已生成。",
             qrUrl = generate.data.url,
             expireAt = session.expireAt
         )
@@ -191,7 +180,9 @@ object QrLoginService {
             pollTasks.clear()
             scheduler.shutdownNow()
         }
-        transport.close()
+        client.dispatcher.cancelAll()
+        client.connectionPool.evictAll()
+        client.dispatcher.executorService.shutdownNow()
     }
 
     private fun cancelSession(playerUuid: UUID, expected: QrSession? = null) {
@@ -247,7 +238,7 @@ object QrLoginService {
                 info("[QrLoginService] 玩家 ${session.playerName} 的二维码已失效，已提示重新生成。")
                 notifyPlayer(
                     session,
-                    Messages.text("login.expired")
+                    "§e[BV] 二维码已失效，请重新执行 /bv qrcode。"
                 )
                 cancelSession(playerUuid, session)
             }
@@ -268,7 +259,7 @@ object QrLoginService {
             .get()
             .build()
         client.newCall(request).execute().use { resp ->
-            val body = online.bingzi.bilibili.video.internal.http.HttpBody.read(resp.body)
+            val body = resp.body?.string() ?: ""
             return gson.fromJson(body, QrGenerateResponse::class.java)
         }
     }
@@ -282,7 +273,7 @@ object QrLoginService {
             .get()
             .build()
         client.newCall(request).execute().use { resp ->
-            val body = online.bingzi.bilibili.video.internal.http.HttpBody.read(resp.body)
+            val body = resp.body?.string() ?: ""
             val headers = resp.headers("Set-Cookie")
             val response = gson.fromJson(body, QrPollResponse::class.java)
             if (response.data?.code == 0) {
@@ -336,7 +327,7 @@ object QrLoginService {
             return
         }
 
-        if (stopped.get() || System.currentTimeMillis() >= session.expireAt || sessions[session.playerUuid] !== session) return
+        if (stopped.get() || sessions[session.playerUuid] !== session) return
         val mid = nav.data.mid
         val uname = nav.data.uname
         val refreshToken = context.refreshToken
@@ -354,14 +345,14 @@ object QrLoginService {
 
         if (!bindResult.success) {
             warning("[QrLoginService] 玩家 ${session.playerName} 绑定失败：${bindResult.message}")
-            notifyPlayer(session, Messages.text("login.failure", "message" to (bindResult.message)))
+            notifyPlayer(session, "§c[BV] ${bindResult.message}")
             return
         }
 
         info("[QrLoginService] 玩家 ${session.playerName} 已完成二维码登录绑定流程。")
         notifyPlayer(
             session,
-            Messages.text("login.bind-success", "mid" to (mid), "uname" to (uname))
+            "§a[BV] 已成功绑定 B 站账号 $mid ($uname)"
         )
     }
 
@@ -374,7 +365,7 @@ object QrLoginService {
             .get()
             .build()
         client.newCall(request).execute().use { resp ->
-            val body = online.bingzi.bilibili.video.internal.http.HttpBody.read(resp.body)
+            val body = resp.body?.string() ?: ""
             return gson.fromJson(body, NavResponse::class.java)
         }
     }

@@ -1,46 +1,156 @@
+import io.izzel.taboolib.gradle.*
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 
 plugins {
     java
+    id("io.izzel.taboolib") version "2.0.37"
     id("org.jetbrains.kotlin.jvm") version "2.2.0"
+    `maven-publish`
+    id("idea")
 }
-repositories { mavenCentral() }
+
+taboolib {
+    env {
+        install(Basic)
+        install(BukkitHook)
+        install(BukkitUtil)
+        install(CommandHelper)
+        install(I18n)
+        install(Metrics)
+        install(MinecraftChat)
+        install(Bukkit)
+        install(Kether)
+        // Kether传递引入NMS模块；二维码不再调用该模块，26.2不因其版本表中断生命周期。
+        modules.removeIf { it.startsWith("bukkit-nms") }
+        disableOnUnsupportedVersion = true
+        disableWhenPrimitiveLoaderError = true
+        enableIsolatedClassloader = true
+    }
+    description {
+        name = "BilibiliVideo"
+        bukkitApi("26.2")
+        dependencies { name("JiuJiuLib").optional(true) }
+        contributors {
+            name("BingZi-233")
+        }
+    }
+    version {
+        taboolib = "6.3.0-afd75a7"
+        skipKotlinRelocate = true
+    }
+}
+
+val ktormVersion = "3.6.0"
+val hikariVersion = "4.0.3"
+val sqliteDriverVersion = "3.45.1.0"
+val mysqlDriverVersion = "8.3.0"
+val okhttpVersion = "4.12.0"
+val okioVersion = "3.6.0"
+val gsonVersion = "2.11.0"
+val zxingVersion = "3.5.2"
 
 dependencies {
-    compileOnly(files("libs/folia-api-26.2.build.7-beta.jar", "libs/JiuJiuLib.jar"))
+    compileOnly(files("libs/folia-api-26.2.build.7-beta.jar"))
     compileOnly("net.kyori:adventure-api:5.2.0")
-    implementation(kotlin("stdlib"))
-    implementation(kotlin("reflect"))
-    implementation("org.ktorm:ktorm-core:3.6.0")
-    implementation("org.ktorm:ktorm-support-mysql:3.6.0")
-    implementation("org.ktorm:ktorm-support-sqlite:3.6.0")
-    implementation("com.zaxxer:HikariCP:4.0.3")
-    implementation("org.xerial:sqlite-jdbc:3.45.1.0")
-    implementation("com.mysql:mysql-connector-j:8.3.0") { isTransitive = false }
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.google.code.gson:gson:2.11.0")
-    implementation("com.google.zxing:core:3.5.2")
-    compileOnly("org.slf4j:slf4j-api:2.0.17")
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    testImplementation(files("libs/folia-api-26.2.build.7-beta.jar"))
-    testImplementation("net.kyori:adventure-api:5.2.0")
-    testImplementation("org.yaml:snakeyaml:2.2")
-    testImplementation("com.google.guava:guava:33.3.1-jre")
-    testImplementation("org.slf4j:slf4j-api:2.0.17")
+    testImplementation("org.xerial:sqlite-jdbc:3.45.1.0")
+    compileOnly(kotlin("stdlib"))
+    compileOnly(fileTree("libs"))
+    compileOnly("org.ktorm:ktorm-core:$ktormVersion")
+    compileOnly("org.ktorm:ktorm-support-mysql:$ktormVersion")
+    compileOnly("org.ktorm:ktorm-support-sqlite:$ktormVersion")
+    compileOnly("com.zaxxer:HikariCP:$hikariVersion")
+    compileOnly("org.xerial:sqlite-jdbc:$sqliteDriverVersion")
+    compileOnly("com.mysql:mysql-connector-j:$mysqlDriverVersion")
+    compileOnly("com.squareup.okhttp3:okhttp:$okhttpVersion")
+    compileOnly("com.squareup.okio:okio-jvm:$okioVersion")
+    compileOnly("com.google.code.gson:gson:$gsonVersion")
+    compileOnly("com.google.zxing:core:$zxingVersion")
 }
-configurations.runtimeClasspath { exclude(group="org.slf4j") }
-kotlin { compilerOptions { jvmTarget.set(JVM_21) } }
-java { sourceCompatibility=JavaVersion.VERSION_21; targetCompatibility=JavaVersion.VERSION_21 }
-tasks.processResources {
-    inputs.property("pluginVersion", project.version)
-    filesMatching("plugin.yml") { expand("version" to project.version) }
+
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
 }
-tasks.jar {
-    archiveFileName.set("JiuJiublbl.jar")
-    duplicatesStrategy=DuplicatesStrategy.EXCLUDE
-    exclude("META-INF/*.SF", "META-INF/*.RSA", "META-INF/*.DSA", "module-info.class", "META-INF/versions/**/module-info.class")
-    from(configurations.runtimeClasspath.get().filter { it.isFile }.map { zipTree(it) })
+
+tasks.withType<KotlinCompile> {
+    compilerOptions {
+        jvmTarget.set(JVM_21)
+        freeCompilerArgs.add("-Xjvm-default=all")
+    }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            groupId = "online.bingzi"
+            artifactId = "bilibilivideo"
+            // 使用 gradle.properties 中的版本号
+            version = project.version.toString()
+
+            // 直接发布API JAR文件
+            val apiJarFile = file("build/libs/${rootProject.name}-${rootProject.version}-api.jar")
+            artifact(apiJarFile)
+
+            pom {
+                name.set("BilibiliVideo")
+                description.set("链接BilibiliVideo的Minecraft插件")
+                url.set("https://github.com/BingZi-233/BilibiliVideo")
+
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://opensource.org/licenses/MIT")
+                    }
+                }
+
+                developers {
+                    developer {
+                        id.set("BingZi-233")
+                        name.set("BingZi-233")
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            name = "AeolianCloud"
+            url = uri("https://repo.aeoliancloud.com/repository/releases/")
+            credentials {
+                username = System.getenv("MAVEN_USERNAME") ?: project.findProperty("mavenUsername") as String?
+                password = System.getenv("MAVEN_PASSWORD") ?: project.findProperty("mavenPassword") as String?
+            }
+            authentication {
+                create<BasicAuthentication>("basic")
+            }
+            // 添加上传方法配置
+            isAllowInsecureProtocol = false
+        }
+    }
+}
+
+// 确保发布任务依赖于API构建任务
+tasks.withType<PublishToMavenRepository> {
+    dependsOn("taboolibBuildApi")
+}
+
+idea {
+    module {
+        isDownloadJavadoc = true
+        isDownloadSources = true
+    }
 }
 tasks.test { useJUnitPlatform() }
+
+
+configurations.testImplementation { extendsFrom(configurations.compileOnly.get()) }

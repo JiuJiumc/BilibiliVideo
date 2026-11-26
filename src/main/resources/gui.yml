@@ -11,9 +11,18 @@ title: '谢谢你为服务器的三联'
 # 页面按钮均为透明模型；不要改为有实际价值的可移动物品。
 button-material: PAPER
 button-item-model: jj_bilibili_gui_261124:invisible
-# 视频统一在config.yml的reward.videos配置；此处仅保留旧配置兼容入口。
-# 旧视频文字可保留，但config.yml中同BV号的name/lore优先。
-videos: {}
+# 视频名称、列表副标题与完整奖励说明；键为config.yml已登记的真实BV号。
+# 未登记活动不会展示；保留空表时使用BV号和对应奖励模板description。
+# 可在真实BV号下配置name短名称、lore多行完整说明；长名称在卡片裁切，悬浮提示保留完整名称。
+videos:
+  BV1oHyjzMEXM:
+    name: '宣传视频一'
+    lore:
+      - '啾啾空岛即将公测'
+      - '正版验证｜不限生电'
+      - '趣味插件｜玩家友好'
+      - '三连礼物：钻石×1、牛排×16、附魔之瓶×16'
+      - '每位玩家该视频奖励限领一次'
 # 字体只引用已存在的共享字形，新增缺字在本次CE包中；完整长文放原生物品Lore。
 labels:
   unbound: 'B站账号尚未绑定'

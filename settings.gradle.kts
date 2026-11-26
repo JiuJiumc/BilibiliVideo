@@ -1,1 +1,1 @@
-rootProject.name = "JiuJiublbl"
+rootProject.name = "BilibiliVideo"

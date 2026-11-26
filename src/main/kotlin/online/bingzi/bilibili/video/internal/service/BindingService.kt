@@ -1,11 +1,9 @@
 package online.bingzi.bilibili.video.internal.service
 
-import online.bingzi.bilibili.video.internal.Messages
-
 import online.bingzi.bilibili.video.internal.entity.BoundAccount
 import online.bingzi.bilibili.video.internal.repository.BoundAccountRepository
-import online.bingzi.bilibili.video.internal.info
-import online.bingzi.bilibili.video.internal.warning
+import taboolib.common.platform.function.info
+import taboolib.common.platform.function.warning
 
 /**
  * 账号绑定业务服务层。
@@ -76,16 +74,16 @@ object BindingService {
                     )
                     if (refreshed <= 0) return BindResult(
                         code = BindResultCode.DATABASE_ERROR,
-                        message = Messages.text("binding.state-changed")
+                        message = "绑定状态已变化，请重新查询；如需换绑请联系服主。"
                     )
                     BindResult(
                         code = BindResultCode.ALREADY_BOUND_SAME,
-                        message = Messages.text("binding.already-bound")
+                        message = "你已经绑定过该 B 站账号，无需重复操作。"
                     )
                 } else {
                     BindResult(
                         code = BindResultCode.PLAYER_BOUND_OTHER,
-                        message = Messages.text("binding.player-bound-elsewhere")
+                        message = "该玩家已绑定其他 B 站账号；玩家不可换绑，请联系服主在控制台处理。"
                     )
                 }
             }
@@ -95,7 +93,7 @@ object BindingService {
             if (conflictByMid != null) {
                 return BindResult(
                     code = BindResultCode.MID_BOUND_OTHER,
-                    message = Messages.text("binding.account-bound-elsewhere")
+                    message = "该 B 站账号已与其他玩家绑定。"
                 )
             }
 
@@ -118,15 +116,15 @@ object BindingService {
             if (affected <= 0) {
                 return BindResult(
                     code = BindResultCode.DATABASE_ERROR,
-                    message = Messages.text("binding.insert-failed")
+                    message = "数据库写入失败，请稍后重试。"
                 )
             }
 
-            val action = if (existingByPlayer == null) Messages.text("binding.audit-bind") else Messages.text("binding.audit-reactivate")
+            val action = if (existingByPlayer == null) "完成账号绑定" else "重新激活账号绑定"
             info("[BindingService] 已为玩家 $playerName $action。")
             BindResult(
                 code = BindResultCode.SUCCESS,
-                message = Messages.text("binding.success")
+                message = "绑定成功。"
             )
         } catch (t: Throwable) {
             warning(
@@ -135,7 +133,7 @@ object BindingService {
             )
             BindResult(
                 code = BindResultCode.DATABASE_ERROR,
-                message = Messages.text("binding.failed")
+                message = "执行绑定时发生错误，请联系管理员。"
             )
         }
     }
@@ -167,7 +165,7 @@ object BindingService {
             if (existing == null) {
                 return UnbindResult(
                     code = UnbindResultCode.NOT_BOUND,
-                    message = Messages.text("binding.missing")
+                    message = "未找到绑定记录。"
                 )
             }
 
@@ -175,14 +173,14 @@ object BindingService {
             if (affected <= 0) {
                 return UnbindResult(
                     code = UnbindResultCode.DATABASE_ERROR,
-                    message = Messages.text("binding.update-failed")
+                    message = "数据库更新失败，请稍后重试。"
                 )
             }
 
             info("[BindingService] 已为玩家 ${existing.playerName} 完成账号解绑。")
             UnbindResult(
                 code = UnbindResultCode.SUCCESS,
-                message = Messages.text("binding.unbind-success")
+                message = "解绑成功。"
             )
         } catch (t: Throwable) {
             warning(
@@ -191,7 +189,7 @@ object BindingService {
             )
             UnbindResult(
                 code = UnbindResultCode.DATABASE_ERROR,
-                message = Messages.text("binding.unbind-failed")
+                message = "执行解绑时发生错误，请联系管理员。"
             )
         }
     }
