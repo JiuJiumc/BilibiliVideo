@@ -21,6 +21,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0")
     implementation("com.google.zxing:core:3.5.2")
     compileOnly("org.slf4j:slf4j-api:2.0.17")
+    compileOnly("io.netty:netty-transport:4.2.7.Final")
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter:5.13.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -29,6 +30,7 @@ dependencies {
     testImplementation("org.yaml:snakeyaml:2.2")
     testImplementation("com.google.guava:guava:33.3.1-jre")
     testImplementation("org.slf4j:slf4j-api:2.0.17")
+    testImplementation("io.netty:netty-transport:4.2.7.Final")
 }
 configurations.runtimeClasspath { exclude(group="org.slf4j") }
 kotlin { compilerOptions { jvmTarget.set(JVM_21) } }

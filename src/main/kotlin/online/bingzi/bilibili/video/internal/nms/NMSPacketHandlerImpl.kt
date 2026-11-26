@@ -15,6 +15,10 @@ class NMSPacketHandlerImpl : NMSPacketHandler() {
     private val craftPlayer = Class.forName("$craftPackage.entity.CraftPlayer").getMethod("getHandle")
     private val connectionField = craftPlayer.returnType.getField("connection")
     private val send = connectionField.type.getMethod("send", packetClass)
+    private val networkConnection = connectionField.type.getField("connection")
+    private val channelField = networkConnection.type.getField("channel")
+    private val actionPacket = Class.forName("net.minecraft.network.protocol.game.ServerboundPlayerActionPacket")
+    private val getAction = actionPacket.getMethod("getAction")
     private val slotConstructor = Class.forName("net.minecraft.network.protocol.game.ClientboundSetPlayerInventoryPacket")
         .getConstructor(Int::class.javaPrimitiveType, itemClass)
     private val mapId = Class.forName("net.minecraft.world.level.saveddata.maps.MapId")
@@ -35,6 +39,13 @@ class NMSPacketHandlerImpl : NMSPacketHandler() {
         sendPacket(player, slotConstructor.newInstance(slot - 36, craftItem.invoke(null, item)))
     }
     override fun refreshInventory(player: Player) { player.updateInventory() }
+    override fun watchDrop(player: Player, onDrop: () -> Boolean): AutoCloseable {
+        val listener = connectionField.get(craftPlayer.invoke(player))
+        val channel = channelField.get(networkConnection.get(listener)) as io.netty.channel.Channel
+        return QrDropGuard(channel, { packet ->
+            actionPacket.isInstance(packet) && (getAction.invoke(packet) as Enum<*>).name in setOf("DROP_ITEM", "DROP_ALL_ITEMS")
+        }, onDrop).also { it.install() }
+    }
     override fun sendMapData(player: Player, mapId: Int, colors: ByteArray) {
         require(colors.size == 128 * 128)
         sendPacket(player, mapConstructor.newInstance(mapIdConstructor.newInstance(mapId), 0.toByte(), false,
